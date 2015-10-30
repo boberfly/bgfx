@@ -14,25 +14,27 @@ if(CMAKE_HOST_WINDOWS)
 	set(SHADERC_VERTEX_PROFILE vs_4_0)
 	set(SHADERC_FRAGMENT_PROFILE ps_4_0)
 	set(SHADERC_COMPUTE_PROFILE cs_5_0)
-else(CMAKE_HOST_OSX)
+	set(SHADER_PATH shaders/dx11)
+else(CMAKE_HOST_OSX || CMAKE_HOST_LINUX)
 	set(SHADERC_PLATFORM osx)
 	set(SHADERC_VERTEX_PROFILE 140)
 	set(SHADERC_FRAGMENT_PROFILE 140)
 	set(SHADERC_COMPUTE_PROFILE 430)
+	set(SHADER_PATH shaders/glsl)
 endif()
 
-file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/dx11)
-file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/glsl)
+file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${SHADER_PATH})
+
 
 # Macro for adding a custom compiler step for .sc files 
 macro(execute_shader_compiler target shaderFile profile type platform)	
 	get_filename_component(SHADER_FILE_NAME ${shaderFile} NAME_WE)
 	add_custom_command(			
-			OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/dx11/${SHADER_FILE_NAME}.bin"
+			OUTPUT "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${SHADER_PATH}/${SHADER_FILE_NAME}.bin"
 			COMMAND "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaderc" 
 				-i "${CMAKE_SOURCE_DIR}/src" 
 				-f "${shaderFile}" 
-				-o "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/dx11/${SHADER_FILE_NAME}.bin" 
+				-o "${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/${SHADER_PATH}/${SHADER_FILE_NAME}.bin" 
 				--profile ${profile} 
 				--type ${type} 
 				--platform ${platform} 
