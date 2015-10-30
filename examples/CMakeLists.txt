@@ -1,5 +1,5 @@
 ###### EXAMPLES ######
-cmake_minimum_required(VERSION 3.3)
+cmake_minimum_required(VERSION 3.1)
 
 # Add source files for common example project 
 file(GLOB_RECURSE SOURCES common/*.cpp common/*.h ../3rdparty/ib-compress/*.cpp ../3rdparty/ib-compress/*.h ../3rdparty/ocornut-imgui/*.cpp ../3rdparty/ocornut-imgui/*.h)
