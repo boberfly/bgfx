@@ -9,6 +9,21 @@ add_library (
 )
 set_target_properties(example-common PROPERTIES FOLDER "Examples")
 
+if(CMAKE_HOST_WINDOWS)
+	set(SHADERC_PLATFORM windows)
+	set(SHADERC_VERTEX_PROFILE vs_4_0)
+	set(SHADERC_FRAGMENT_PROFILE ps_4_0)
+	set(SHADERC_COMPUTE_PROFILE cs_5_0)
+else(CMAKE_HOST_OSX)
+	set(SHADERC_PLATFORM osx)
+	set(SHADERC_VERTEX_PROFILE 140)
+	set(SHADERC_FRAGMENT_PROFILE 140)
+	set(SHADERC_COMPUTE_PROFILE 430)
+endif()
+
+file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/dx11)
+file(MAKE_DIRECTORY ${CMAKE_RUNTIME_OUTPUT_DIRECTORY}/shaders/glsl)
+
 # Macro for adding a custom compiler step for .sc files 
 macro(execute_shader_compiler target shaderFile profile type platform)	
 	get_filename_component(SHADER_FILE_NAME ${shaderFile} NAME_WE)
@@ -50,19 +65,19 @@ macro(add_bgfx_example folderName)
 	## VERTEX SHADERS 
 	file(GLOB_RECURSE SHADER_SRC ${folderName}/vs_*.sc)	
 	foreach(SHADER_FILE_FULL ${SHADER_SRC})
-		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} vs_4_0 vertex windows) 		
+		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ${SHADERC_VERTEX_PROFILE} vertex ${SHADERC_PLATFORM}) 		
 	endforeach()
 	
 	## FRAGMENT SHADERS 
 	file(GLOB_RECURSE SHADER_SRC ${folderName}/fs_*.sc)	
 	foreach(SHADER_FILE_FULL ${SHADER_SRC})
-		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ps_4_0 fragment windows) 		
+		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ${SHADERC_FRAGMENT_PROFILE} fragment ${SHADERC_PLATFORM}) 		
 	endforeach()   
 
 	## COMPUTE SHADERS 
 	file(GLOB_RECURSE SHADER_SRC ${folderName}/cs_*.sc)	
 	foreach(SHADER_FILE_FULL ${SHADER_SRC})
-		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} cs_5_0 compute windows) 		
+		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ${SHADERC_COMPUTE_PROFILE} compute ${SHADERC_PLATFORM}) 		
 	endforeach() 	
 	
 endmacro()
