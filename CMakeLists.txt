@@ -47,6 +47,8 @@ endif()
 if(CMAKE_COMPILER_MSVC)
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
+elseif(CMAKE_COMPILER_CLANG)
+	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 endif()
 
 
@@ -81,9 +83,19 @@ add_library (
    ${SOURCES}
 )
 
+find_package(OpenGL)
+
+target_link_libraries(
+	bgfx
+	PRIVATE X11 Xrandr Xi Xinerama Xxf86vm Xcursor GL dl
+	PRIVATE pthread
+	PRIVATE ${OPENGL_LIBRARIES}
+)
+
 target_include_directories(
 	bgfx
-	PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/dxsdk/include			# TODO: Make platform dependent
+	PRIVATE ${OPENGL_INCLUDE_DIR}
+#	PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/dxsdk/include			# TODO: Make platform dependent
 )
 
 add_subdirectory(examples)
