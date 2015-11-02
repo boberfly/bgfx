@@ -47,7 +47,7 @@ endmacro()
 # Macro for adding an example project by just specifying the folder name 
 macro(add_bgfx_example folderName) 
 	message("folderName = ${folderName}")
-	file(GLOB_RECURSE SOURCES ${folderName}/*.cpp ${folderName}/*.c ${folderName}/*.h ${folderName}/*.sc)
+	file(GLOB_RECURSE SOURCES ${folderName}/*.cpp ${folderName}/*.c ${folderName}/*.h ${folderName}/*.sc ${folderName}/*.sh)
 	add_executable (
 	   ${folderName}
 	   ${SOURCES}

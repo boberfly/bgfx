@@ -23,6 +23,7 @@
 #	define bvec4 bool4
 
 #	if BGFX_SHADER_LANGUAGE_HLSL > 3
+
 struct BgfxSampler2D
 {
 	SamplerState m_sampler;
@@ -32,6 +33,11 @@ struct BgfxSampler2D
 vec4 bgfxTexture2D(BgfxSampler2D _sampler, vec2 _coord)
 {
 	return _sampler.m_texture.Sample(_sampler.m_sampler, _coord);
+}
+
+vec4 bgfxTexture2DGrad(BgfxSampler2D _sampler, vec2 _coord, vec2 _ddx, vec2 _ddy)
+{
+    return _sampler.m_texture.SampleGrad(_sampler.m_sampler, _coord, _ddx, _ddy);
 }
 
 vec4 bgfxTexture2DLod(BgfxSampler2D _sampler, vec2 _coord, float _level)
@@ -130,6 +136,7 @@ vec4 bgfxTextureCubeLod(BgfxSamplerCube _sampler, vec3 _coord, float _level)
 			static BgfxSampler2D _name = { _name ## Sampler, _name ## Texture }
 #		define sampler2D BgfxSampler2D
 #		define texture2D(_sampler, _coord) bgfxTexture2D(_sampler, _coord)
+#		define texture2DGrad(_sampler, _coord, _ddx, _ddy) bgfxTexture2DGrad(_sampler, _coord, _ddx, _ddy)
 #		define texture2DLod(_sampler, _coord, _level) bgfxTexture2DLod(_sampler, _coord, _level)
 #		define texture2DProj(_sampler, _coord) bgfxTexture2DProj(_sampler, _coord)
 
@@ -224,7 +231,10 @@ float bgfxShadow2DProj(sampler2DShadow _sampler, vec4 _coord)
 #	endif // BGFX_SHADER_LANGUAGE_HLSL > 3
 
 vec2 vec2_splat(float _x) { return vec2(_x, _x); }
-vec3 vec3_splat(float _x) { return vec3(_x, _x, _x); }
+//vec3 vec3_splat(float _x) { return vec3(_x, _x, _x); }
+
+#define vec3_splat(_x) vec3(_x, _x, _x)
+
 vec4 vec4_splat(float _x) { return vec4(_x, _x, _x, _x); }
 
 uvec2 uvec2_splat(uint _x) { return uvec2(_x, _x); }
