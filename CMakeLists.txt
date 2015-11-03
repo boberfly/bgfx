@@ -83,19 +83,26 @@ add_library (
    ${SOURCES}
 )
 
-find_package(OpenGL)
-
-target_link_libraries(
-	bgfx
-	PRIVATE X11 Xrandr Xi Xinerama Xxf86vm Xcursor GL dl
-	PRIVATE pthread
-	PRIVATE ${OPENGL_LIBRARIES}
-)
+if(CMAKE_HOST_LINUX)
+	find_package(OpenGL)	
+	
+	target_link_libraries(
+		bgfx
+		PRIVATE X11 Xrandr Xi Xinerama Xxf86vm Xcursor GL dl
+		PRIVATE pthread
+		PRIVATE ${OPENGL_LIBRARIES}
+	)
+	
+	target_include_directories(
+		bgfx
+		PRIVATE ${OPENGL_INCLUDE_DIR}
+		
+	)
+endif()
 
 target_include_directories(
 	bgfx
-	PRIVATE ${OPENGL_INCLUDE_DIR}
-#	PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/dxsdk/include			# TODO: Make platform dependent
+	PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/dxsdk/include
 )
 
 add_subdirectory(examples)
