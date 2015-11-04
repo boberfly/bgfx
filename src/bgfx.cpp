@@ -19,6 +19,11 @@ namespace bgfx
 #	define BGFX_CHECK_RENDER_THREAD()
 #endif // BGFX_CONFIG_MULTITHREADED
 
+#define BGFX_CHECK_CAPS(_caps, _msg) \
+		BX_CHECK(0 != (g_caps.supported & (_caps) ) \
+			, _msg " Use bgfx::getCaps to check " #_caps " backend renderer capabilities." \
+			);
+
 #if BGFX_CONFIG_USE_TINYSTL
 	void* TinyStlAllocator::static_allocate(size_t _bytes)
 	{
@@ -762,7 +767,7 @@ namespace bgfx
 		return PredefinedUniform::Count;
 	}
 
-	uint32_t Frame::submit(uint8_t _id, ProgramHandle _handle, int32_t _depth)
+	uint32_t Frame::submit(uint8_t _id, ProgramHandle _program, OcclusionQueryHandle _occlusionQuery, int32_t _depth)
 	{
 		if (m_discard)
 		{
@@ -779,9 +784,9 @@ namespace bgfx
 
 		m_uniformEnd = m_uniformBuffer->getPos();
 
-		m_key.m_program = invalidHandle == _handle.idx
+		m_key.m_program = invalidHandle == _program.idx
 			? 0
-			: _handle.idx
+			: _program.idx
 			;
 
 		m_key.m_depth  = (uint32_t)_depth;
@@ -796,13 +801,22 @@ namespace bgfx
 
 		m_draw.m_constBegin = m_uniformBegin;
 		m_draw.m_constEnd   = m_uniformEnd;
-		m_draw.m_flags |= m_flags;
+		m_draw.m_stateFlags |= m_stateFlags;
+
+		if (isValid(_occlusionQuery) )
+		{
+			BX_CHECK(!isValid(m_draw.m_occlusionQuery), "");
+
+			m_draw.m_stateFlags |= BGFX_STATE_INTERNAL_OCCLUSION_QUERY;
+			m_draw.m_occlusionQuery = _occlusionQuery;
+		}
+
 		m_renderItem[m_numRenderItems].draw = m_draw;
 		++m_numRenderItems;
 
 		m_draw.clear();
 		m_uniformBegin = m_uniformEnd;
-		m_flags = BGFX_STATE_NONE;
+		m_stateFlags = BGFX_STATE_NONE;
 
 		return m_num;
 	}
@@ -979,6 +993,7 @@ namespace bgfx
 		CAPS_FLAGS(BGFX_CAPS_HIDPI),
 		CAPS_FLAGS(BGFX_CAPS_TEXTURE_BLIT),
 		CAPS_FLAGS(BGFX_CAPS_TEXTURE_READ_BACK),
+		CAPS_FLAGS(BGFX_CAPS_OCCLUSION_QUERY),
 #undef CAPS_FLAGS
 	};
 
@@ -1246,6 +1261,7 @@ namespace bgfx
 			CHECK_HANDLE_LEAK(m_textureHandle);
 			CHECK_HANDLE_LEAK(m_frameBufferHandle);
 			CHECK_HANDLE_LEAK(m_uniformHandle);
+			CHECK_HANDLE_LEAK(m_occlusionQueryHandle);
 #undef CHECK_HANDLE_LEAK
 		}
 	}
@@ -1312,6 +1328,11 @@ namespace bgfx
 	{
 		BX_CHECK(0 == m_instBufferCount, "Instance buffer allocated, but not used. This is incorrect, and causes memory leak.");
 
+		if (BX_ENABLED(BGFX_CONFIG_DEBUG_OCCLUSION) )
+		{
+			m_occlusionQuerySet.clear();
+		}
+
 		// wait for render thread to finish
 		renderSemWait();
 		frameNoRenderWait();
@@ -1331,7 +1352,7 @@ namespace bgfx
 	{
 		freeDynamicBuffers();
 		m_submit->m_resolution = m_resolution;
-		m_resolution.m_flags &= ~BGFX_RESET_FORCE;
+		m_resolution.m_flags &= ~BGFX_RESET_INTERNAL_FORCE;
 		m_submit->m_debug = m_debug;
 
 		memcpy(m_submit->m_viewRemap, m_viewRemap, sizeof(m_viewRemap) );
@@ -1350,6 +1371,8 @@ namespace bgfx
 		m_submit->finish();
 
 		bx::xchg(m_render, m_submit);
+
+		memcpy(m_render->m_occlusion, m_submit->m_occlusion, sizeof(m_submit->m_occlusion) );
 
 		if (!BX_ENABLED(BGFX_CONFIG_MULTITHREADED)
 		||  m_singleThreaded)
@@ -2349,6 +2372,7 @@ again:
 	void reset(uint32_t _width, uint32_t _height, uint32_t _flags)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BX_CHECK(0 == (_flags&BGFX_RESET_RESERVED_MASK), "Do not set reset reserved flags!");
 		s_ctx->reset(_width, _height, _flags);
 	}
 
@@ -2608,7 +2632,7 @@ again:
 	const InstanceDataBuffer* allocInstanceDataBuffer(uint32_t _num, uint16_t _stride)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_INSTANCING), "Instancing is not supported! Use bgfx::getCaps to check backend renderer capabilities.");
+		BGFX_CHECK_CAPS(BGFX_CAPS_INSTANCING, "Instancing is not supported!");
 		BX_CHECK(0 < _num, "Requesting 0 instanced data vertices.");
 		return s_ctx->allocInstanceDataBuffer(_num, _stride);
 	}
@@ -2797,9 +2821,7 @@ again:
 	TextureHandle createTexture3D(uint16_t _width, uint16_t _height, uint16_t _depth, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_TEXTURE_3D)
-			, "Texture3D is not supported! Use bgfx::getCaps to check BGFX_CAPS_TEXTURE_3D backend renderer capabilities."
-			);
+		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_3D, "Texture3D is not supported!");
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
@@ -2902,9 +2924,8 @@ again:
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _mem, "_mem can't be NULL");
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_TEXTURE_3D)
-			, "Texture3D is not supported! Use bgfx::getCaps to check BGFX_CAPS_TEXTURE_3D backend renderer capabilities."
-			);
+		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_3D, "Texture3D is not supported!");
+
 		if (_width == 0
 		||  _height == 0
 		||  _depth == 0)
@@ -2937,9 +2958,7 @@ again:
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _data, "_data can't be NULL");
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_TEXTURE_READ_BACK)
-			, "Texture read-back is not supported! Use bgfx::getCaps to check BGFX_CAPS_TEXTURE_READ_BACK backend renderer capabilities."
-			);
+		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_READ_BACK, "Texture read-back is not supported!");
 		s_ctx->readTexture(_handle, _data);
 	}
 
@@ -2947,9 +2966,7 @@ again:
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _data, "_data can't be NULL");
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_TEXTURE_READ_BACK)
-			, "Texture read-back is not supported! Use bgfx::getCaps to check BGFX_CAPS_TEXTURE_READ_BACK backend renderer capabilities."
-			);
+		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_READ_BACK, "Texture read-back is not supported!");
 		s_ctx->readTexture(_handle, _attachment, _data);
 	}
 
@@ -3002,6 +3019,27 @@ again:
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		s_ctx->destroyUniform(_handle);
+	}
+
+	OcclusionQueryHandle createOcclusionQuery()
+	{
+		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_OCCLUSION_QUERY, "Occlusion query is not supported!");
+		return s_ctx->createOcclusionQuery();
+	}
+
+	OcclusionQueryResult::Enum getResult(OcclusionQueryHandle _handle)
+	{
+		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_OCCLUSION_QUERY, "Occlusion query is not supported!");
+		return s_ctx->getResult(_handle);
+	}
+
+	void destroyOcclusionQuery(OcclusionQueryHandle _handle)
+	{
+		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_OCCLUSION_QUERY, "Occlusion query is not supported!");
+		s_ctx->destroyOcclusionQuery(_handle);
 	}
 
 	void setPaletteColor(uint8_t _index, uint32_t _rgba)
@@ -3133,7 +3171,15 @@ again:
 	void setState(uint64_t _state, uint32_t _rgba)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BX_CHECK(0 == (_state&BGFX_STATE_RESERVED_MASK), "Do not set state reserved flags!");
 		s_ctx->setState(_state, _rgba);
+	}
+
+	void setCondition(OcclusionQueryHandle _handle, bool _visible)
+	{
+		BGFX_CHECK_MAIN_THREAD();
+		BGFX_CHECK_CAPS(BGFX_CAPS_OCCLUSION_QUERY, "Occlusion query is not supported!");
+		s_ctx->setCondition(_handle, _visible);
 	}
 
 	void setStencil(uint32_t _fstencil, uint32_t _bstencil)
@@ -3269,16 +3315,27 @@ again:
 		return submit(_id, handle);
 	}
 
-	uint32_t submit(uint8_t _id, ProgramHandle _handle, int32_t _depth)
+	uint32_t submit(uint8_t _id, ProgramHandle _program, int32_t _depth)
 	{
-		BGFX_CHECK_MAIN_THREAD();
-		return s_ctx->submit(_id, _handle, _depth);
+		OcclusionQueryHandle handle = BGFX_INVALID_HANDLE;
+		return submit(_id, _program, handle, _depth);
 	}
 
-	uint32_t submit(uint8_t _id, ProgramHandle _handle, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth)
+	uint32_t submit(uint8_t _id, ProgramHandle _program, OcclusionQueryHandle _occlusionQuery, int32_t _depth)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		return s_ctx->submit(_id, _handle, _indirectHandle, _start, _num, _depth);
+		BX_CHECK(false
+			|| !isValid(_occlusionQuery)
+			|| 0 != (g_caps.supported & BGFX_CAPS_OCCLUSION_QUERY)
+			, "Occlusion query is not supported! Use bgfx::getCaps to check BGFX_CAPS_OCCLUSION_QUERY backend renderer capabilities."
+			);
+		return s_ctx->submit(_id, _program, _occlusionQuery, _depth);
+	}
+
+	uint32_t submit(uint8_t _id, ProgramHandle _program, IndirectBufferHandle _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth)
+	{
+		BGFX_CHECK_MAIN_THREAD();
+		return s_ctx->submit(_id, _program, _indirectHandle, _start, _num, _depth);
 	}
 
 	void setBuffer(uint8_t _stage, IndexBufferHandle _handle, Access::Enum _access)
@@ -3354,18 +3411,14 @@ again:
 	void blit(uint8_t _id, TextureHandle _dst, uint8_t _dstMip, uint16_t _dstX, uint16_t _dstY, uint16_t _dstZ, TextureHandle _src, uint8_t _srcMip, uint16_t _srcX, uint16_t _srcY, uint16_t _srcZ, uint16_t _width, uint16_t _height, uint16_t _depth)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_TEXTURE_BLIT)
-			, "Texture blit is not supported, use bgfx::getCaps to test BGFX_CAPS_TEXTURE_BLIT feature availability"
-			);
+		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_BLIT, "Texture blit is not supported!");
 		s_ctx->blit(_id, _dst, _dstMip, _dstX, _dstY, _dstZ, _src, _srcMip, _srcX, _srcY, _srcZ, _width, _height, _depth);
 	}
 
 	void blit(uint8_t _id, TextureHandle _dst, uint8_t _dstMip, uint16_t _dstX, uint16_t _dstY, uint16_t _dstZ, FrameBufferHandle _src, uint8_t _attachment, uint8_t _srcMip, uint16_t _srcX, uint16_t _srcY, uint16_t _srcZ, uint16_t _width, uint16_t _height, uint16_t _depth)
 	{
 		BGFX_CHECK_MAIN_THREAD();
-		BX_CHECK(0 != (g_caps.supported & BGFX_CAPS_TEXTURE_BLIT)
-			, "Texture blit is not supported! Use bgfx::getCaps to check BGFX_CAPS_TEXTURE_BLIT backend renderer capabilities."
-			);
+		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_BLIT, "Texture blit is not supported!");
 		s_ctx->blit(_id, _dst, _dstMip, _dstX, _dstY, _dstZ, _src, _attachment, _srcMip, _srcX, _srcY, _srcZ, _width, _height, _depth);
 	}
 
@@ -3940,6 +3993,25 @@ BGFX_C_API void bgfx_destroy_uniform(bgfx_uniform_handle_t _handle)
 	bgfx::destroyUniform(handle.cpp);
 }
 
+BGFX_C_API bgfx_occlusion_query_handle_t bgfx_create_occlusion_query()
+{
+	union { bgfx_occlusion_query_handle_t c; bgfx::OcclusionQueryHandle cpp; } handle;
+	handle.cpp = bgfx::createOcclusionQuery();
+	return handle.c;
+}
+
+BGFX_C_API bgfx_occlusion_query_result_t bgfx_get_result(bgfx_occlusion_query_handle_t _handle)
+{
+	union { bgfx_occlusion_query_handle_t c; bgfx::OcclusionQueryHandle cpp; } handle = { _handle };
+	return bgfx_occlusion_query_result_t(bgfx::getResult(handle.cpp) );
+}
+
+BGFX_C_API void bgfx_destroy_occlusion_query(bgfx_occlusion_query_handle_t _handle)
+{
+	union { bgfx_occlusion_query_handle_t c; bgfx::OcclusionQueryHandle cpp; } handle = { _handle };
+	bgfx::destroyOcclusionQuery(handle.cpp);
+}
+
 BGFX_C_API void bgfx_set_palette_color(uint8_t _index, const float _rgba[4])
 {
 	bgfx::setPaletteColor(_index, _rgba);
@@ -4009,6 +4081,12 @@ BGFX_C_API void bgfx_set_marker(const char* _marker)
 BGFX_C_API void bgfx_set_state(uint64_t _state, uint32_t _rgba)
 {
 	bgfx::setState(_state, _rgba);
+}
+
+BGFX_C_API void bgfx_set_condition(bgfx_occlusion_query_handle_t _handle, bool _visible)
+{
+	union { bgfx_occlusion_query_handle_t c; bgfx::OcclusionQueryHandle cpp; } handle = { _handle };
+	bgfx::setCondition(handle.cpp, _visible);
 }
 
 BGFX_C_API void bgfx_set_stencil(uint32_t _fstencil, uint32_t _bstencil)
@@ -4121,6 +4199,13 @@ BGFX_C_API uint32_t bgfx_submit(uint8_t _id, bgfx_program_handle_t _handle, int3
 {
 	union { bgfx_program_handle_t c; bgfx::ProgramHandle cpp; } handle = { _handle };
 	return bgfx::submit(_id, handle.cpp, _depth);
+}
+
+BGFX_C_API uint32_t bgfx_submit_occlusion_query(uint8_t _id, bgfx_program_handle_t _program, bgfx_occlusion_query_handle_t _occlusionQuery, int32_t _depth)
+{
+	union { bgfx_program_handle_t c; bgfx::ProgramHandle cpp; } program = { _program };
+	union { bgfx_occlusion_query_handle c; bgfx::OcclusionQueryHandle cpp; } occlusionQuery = { _occlusionQuery };
+	return bgfx::submit(_id, program.cpp, occlusionQuery.cpp, _depth);
 }
 
 BGFX_C_API uint32_t bgfx_submit_indirect(uint8_t _id, bgfx_program_handle_t _handle, bgfx_indirect_buffer_handle_t _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth)

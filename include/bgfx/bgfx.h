@@ -275,6 +275,18 @@ namespace bgfx
 		};
 	};
 
+	struct OcclusionQueryResult
+	{
+		enum Enum
+		{
+			Invisible,
+			Visible,
+			NoResult,
+
+			Count
+		};
+	};
+
 	static const uint16_t invalidHandle = UINT16_MAX;
 
 	BGFX_HANDLE(DynamicIndexBufferHandle);
@@ -282,6 +294,7 @@ namespace bgfx
 	BGFX_HANDLE(FrameBufferHandle);
 	BGFX_HANDLE(IndexBufferHandle);
 	BGFX_HANDLE(IndirectBufferHandle);
+	BGFX_HANDLE(OcclusionQueryHandle);
 	BGFX_HANDLE(ProgramHandle);
 	BGFX_HANDLE(ShaderHandle);
 	BGFX_HANDLE(TextureHandle);
@@ -1529,6 +1542,31 @@ namespace bgfx
 	///
 	void destroyUniform(UniformHandle _handle);
 
+	/// Create occlusion query.
+	///
+	/// @returns Handle to occlusion query object.
+	///
+	/// @attention C99 equivalent is `bgfx_create_occlusion_query`.
+	///
+	OcclusionQueryHandle createOcclusionQuery();
+
+	/// Retrieve occlusion query result from previous frame.
+	///
+	/// @param[in] _handle Handle to occlusion query object.
+	/// @returns Occlusion query result.
+	///
+	/// @attention C99 equivalent is `bgfx_get_result`.
+	///
+	OcclusionQueryResult::Enum getResult(OcclusionQueryHandle _handle);
+
+	/// Destroy occlusion query.
+	///
+	/// @param[in] _handle Handle to occlusion query object.
+	///
+	/// @attention C99 equivalent is `bgfx_destroy_occlusion_query`.
+	///
+	void destroyOcclusionQuery(OcclusionQueryHandle _handle);
+
 	/// Set palette color value.
 	///
 	/// @param[in] _index Index into palette.
@@ -1728,6 +1766,15 @@ namespace bgfx
 	/// @attention C99 equivalent is `bgfx_set_state`.
 	///
 	void setState(uint64_t _state, uint32_t _rgba = 0);
+
+	/// Set condition for rendering.
+	///
+	/// @param[in] _handle Occlusion query handle.
+	/// @param[in] _visible Render if occlusion query is visible.
+	///
+	/// @attention C99 equivalent is `bgfx_set_condition`.
+	///
+	void setCondition(OcclusionQueryHandle _handle, bool _visible);
 
 	/// Set stencil test state.
 	///
@@ -1946,19 +1993,31 @@ namespace bgfx
 	/// Submit primitive for rendering.
 	///
 	/// @param[in] _id View id.
-	/// @param[in] _handle Program.
+	/// @param[in] _program Program.
 	/// @param[in] _depth Depth for sorting.
 	/// @returns Number of draw calls.
 	///
 	/// @attention C99 equivalent is `bgfx_submit`.
 	///
-	uint32_t submit(uint8_t _id, ProgramHandle _handle, int32_t _depth = 0);
+	uint32_t submit(uint8_t _id, ProgramHandle _program, int32_t _depth = 0);
+
+	/// Submit primitive with occlusion query for rendering.
+	///
+	/// @param[in] _id View id.
+	/// @param[in] _program Program.
+	/// @param[in] _occlusionQuery Occlusion query.
+	/// @param[in] _depth Depth for sorting.
+	/// @returns Number of draw calls.
+	///
+	/// @attention C99 equivalent is `bgfx_submit_occlusion_query.
+	///
+	uint32_t submit(uint8_t _id, ProgramHandle _program, OcclusionQueryHandle _occlusionQuery, int32_t _depth = 0);
 
 	/// Submit primitive for rendering with index and instance data info from
 	/// indirect buffer.
 	///
 	/// @param[in] _id View id.
-	/// @param[in] _handle Program.
+	/// @param[in] _program Program.
 	/// @param[in] _indirectHandle Indirect buffer.
 	/// @param[in] _start First element in indirect buffer.
 	/// @param[in] _num Number of dispatches.
@@ -1966,7 +2025,7 @@ namespace bgfx
 	///
 	/// @attention C99 equivalent is `bgfx_submit_indirect`.
 	///
-	uint32_t submit(uint8_t _id, ProgramHandle _handle, IndirectBufferHandle _indirectHandle, uint16_t _start = 0, uint16_t _num = 1, int32_t _depth = 0);
+	uint32_t submit(uint8_t _id, ProgramHandle _program, IndirectBufferHandle _indirectHandle, uint16_t _start = 0, uint16_t _num = 1, int32_t _depth = 0);
 
 	/// Set compute index buffer.
 	///

@@ -184,6 +184,16 @@ typedef enum bgfx_backbuffer_ratio
 
 } bgfx_backbuffer_ratio_t;
 
+typedef enum bgfx_occlusion_query_result
+{
+    BGFX_OCCLUSION_QUERY_RESULT_INVISIBLE,
+    BGFX_OCCLUSION_QUERY_RESULT_VISIBLE,
+    BGFX_OCCLUSION_QUERY_RESULT_NORESULT,
+
+    BGFX_OCCLUSION_QUERY_RESULT_COUNT
+
+} bgfx_occlusion_query_result_t;
+
 #define BGFX_HANDLE_T(_name) \
     typedef struct _name { uint16_t idx; } _name##_t
 
@@ -192,6 +202,7 @@ BGFX_HANDLE_T(bgfx_dynamic_index_buffer_handle);
 BGFX_HANDLE_T(bgfx_dynamic_vertex_buffer_handle);
 BGFX_HANDLE_T(bgfx_frame_buffer_handle);
 BGFX_HANDLE_T(bgfx_index_buffer_handle);
+BGFX_HANDLE_T(bgfx_occlusion_query_handle);
 BGFX_HANDLE_T(bgfx_program_handle);
 BGFX_HANDLE_T(bgfx_shader_handle);
 BGFX_HANDLE_T(bgfx_texture_handle);
@@ -639,6 +650,15 @@ BGFX_C_API bgfx_uniform_handle_t bgfx_create_uniform(const char* _name, bgfx_uni
 BGFX_C_API void bgfx_destroy_uniform(bgfx_uniform_handle_t _handle);
 
 /**/
+BGFX_C_API bgfx_occlusion_query_handle_t bgfx_create_occlusion_query();
+
+/**/
+BGFX_C_API bgfx_occlusion_query_result_t bgfx_get_result(bgfx_occlusion_query_handle_t _handle);
+
+/**/
+BGFX_C_API void bgfx_destroy_occlusion_query(bgfx_occlusion_query_handle_t _handle);
+
+/**/
 BGFX_C_API void bgfx_set_palette_color(uint8_t _index, const float _rgba[4]);
 
 /**/
@@ -676,6 +696,9 @@ BGFX_C_API void bgfx_set_marker(const char* _marker);
 
 /**/
 BGFX_C_API void bgfx_set_state(uint64_t _state, uint32_t _rgba);
+
+/**/
+BGFX_C_API void bgfx_set_condition(bgfx_occlusion_query_handle_t _handle, bool _visible);
 
 /**/
 BGFX_C_API void bgfx_set_stencil(uint32_t _fstencil, uint32_t _bstencil);
@@ -736,6 +759,9 @@ BGFX_C_API uint32_t bgfx_touch(uint8_t _id);
 
 /**/
 BGFX_C_API uint32_t bgfx_submit(uint8_t _id, bgfx_program_handle_t _handle, int32_t _depth);
+
+/**/
+BGFX_C_API uint32_t bgfx_submit_occlusion_query(uint8_t _id, bgfx_program_handle_t _program, bgfx_occlusion_query_handle_t _occlusionQuery, int32_t _depth);
 
 /**/
 BGFX_C_API uint32_t bgfx_submit_indirect(uint8_t _id, bgfx_program_handle_t _handle, bgfx_indirect_buffer_handle_t _indirectHandle, uint16_t _start, uint16_t _num, int32_t _depth);
