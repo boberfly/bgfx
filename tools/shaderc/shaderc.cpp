@@ -5,7 +5,7 @@
 
 #include "shaderc.h"
 
-bool g_verbose = false;
+bool g_verbose = true;
 
 #define MAX_TAGS 256
 extern "C"
@@ -923,8 +923,6 @@ int main(int _argc, const char* _argv[])
 		File attribdef(varyingdef);
 		const char* parse = attribdef.getData();
 
-        printf("VARYING = %s\n", parse);
-
 		if (NULL != parse
 		&&  *parse != '\0')
 		{
@@ -1749,13 +1747,21 @@ int main(int _argc, const char* _argv[])
 								strins(const_cast<char*>(end), "__RETURN__;\n");
 							}
 						}
+                        
+                        const bool hasLocalPosition = NULL != strstr(input, "gl_Position");
 
-						preprocessor.writef(
-							"struct Output\n"
-							"{\n"
-							"\tvec4 gl_Position : SV_POSITION;\n"
-							"#define gl_Position _varying_.gl_Position\n"
-							);
+                        preprocessor.writef(
+                            "struct Output\n"
+                            "{\n");
+
+                        if (hasLocalPosition)
+                        {
+                            preprocessor.writef(
+                                "\tvec4 gl_Position : SV_POSITION;\n"
+                                "#define gl_Position _varying_.gl_Position\n"
+                                );
+                        }
+
 						for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
 						{
 							VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
