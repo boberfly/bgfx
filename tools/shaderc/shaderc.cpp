@@ -1328,7 +1328,7 @@ int main(int _argc, const char* _argv[])
         //    //bx::write(writer, BGFX_CHUNK_MAGIC_DSH);
         //    //bx::write(writer, outputHash);
         //}
-        else if ('h' == shaderType)
+        else if ('h' == shaderType || 'd' == shaderType)
         {
             compiled = false;
 
@@ -1344,8 +1344,7 @@ int main(int _argc, const char* _argv[])
                     || 0 != essl
                     || 0 != metal)
                 {
-                    const bool needsArrayAnnotation = true;
-
+                    const bool needsInputArrayAnnotation = true;
                     for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
                     {
                         VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
@@ -1358,7 +1357,7 @@ int main(int _argc, const char* _argv[])
                                 , var.m_precision.c_str()
                                 , var.m_type.c_str()
                                 , name
-                                , needsArrayAnnotation ? "[]" : ""
+                                , needsInputArrayAnnotation ? "[]" : ""
                                 );
 
                             preprocessor.writef("%s in %s %s %s%s;\n"
@@ -1366,11 +1365,12 @@ int main(int _argc, const char* _argv[])
                                 , var.m_precision.c_str()
                                 , var.m_type.c_str()
                                 , name
-                                , needsArrayAnnotation ? "[]" : ""
+                                , needsInputArrayAnnotation ? "[]" : ""
                                 );
                         }
                     }
 
+                    const bool needsOutputArrayAnnotation = 'h' == shaderType;
                     for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
                     {
                         VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
@@ -1381,14 +1381,14 @@ int main(int _argc, const char* _argv[])
                                 , var.m_interpolation.c_str()
                                 , var.m_type.c_str()
                                 , var.m_name.c_str()
-                                , needsArrayAnnotation ? "[]" : ""
+                                , needsOutputArrayAnnotation ? "[]" : ""
                                 );
 
                             preprocessor.writef("%s out %s %s%s;\n"
                                 , var.m_interpolation.c_str()
                                 , var.m_type.c_str()
                                 , var.m_name.c_str()
-                                , needsArrayAnnotation ? "[]" : ""
+                                , needsOutputArrayAnnotation ? "[]" : ""
                                 );
                         }
                     }

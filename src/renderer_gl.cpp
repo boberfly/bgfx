@@ -4916,7 +4916,7 @@ namespace bgfx { namespace gl
 
 				code = temp;
             }
-            else if (GL_TESS_CONTROL_SHADER == m_type)
+            else if (GL_TESS_CONTROL_SHADER == m_type || GL_TESS_EVALUATION_SHADER == m_type)
             {
                 int32_t codeLen = (int32_t)strlen(code);
                 int32_t tempLen = codeLen + (4 << 10);

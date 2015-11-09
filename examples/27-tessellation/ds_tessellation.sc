@@ -1,11 +1,7 @@
+$input hs_position, hs_color0
+$output ds_color0, ds_facetNormal, ds_patchDistance
+
 layout(triangles, equal_spacing, cw) in;
-
-in vec3 hs_position[];
-in vec4 hs_color0[];
-
-out vec4 ds_color0;
-out vec3 ds_facetNormal;
-out vec3 ds_patchDistance;
 
 #include "../common/common.sh"
 
