@@ -994,6 +994,7 @@ namespace bgfx
 		CAPS_FLAGS(BGFX_CAPS_TEXTURE_BLIT),
 		CAPS_FLAGS(BGFX_CAPS_TEXTURE_READ_BACK),
 		CAPS_FLAGS(BGFX_CAPS_OCCLUSION_QUERY),
+        CAPS_FLAGS(BGFX_CAPS_TESSELLATION),        
 #undef CAPS_FLAGS
 	};
 
@@ -2012,7 +2013,13 @@ again:
 					ShaderHandle fsh;
 					_cmdbuf.read(fsh);
 
-					m_renderCtx->createProgram(handle, vsh, fsh);
+                    ShaderHandle hsh;
+                    _cmdbuf.read(hsh);
+
+                    ShaderHandle dsh;
+                    _cmdbuf.read(dsh);
+
+					m_renderCtx->createProgram(handle, vsh, fsh, hsh, dsh);
 				}
 				break;
 
@@ -2678,6 +2685,17 @@ again:
 
 		return s_ctx->createProgram(_vsh, _fsh, _destroyShaders);
 	}
+
+    ProgramHandle createProgram(ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh, bool _destroyShaders)
+    {
+        BGFX_CHECK_MAIN_THREAD();
+        //if (!isValid(_fsh))
+        //{
+        //    return createProgram(_vsh, _destroyShaders);
+        //}
+
+        return s_ctx->createProgram(_vsh, _fsh, _hsh, _dsh, _destroyShaders);
+    }
 
 	ProgramHandle createProgram(ShaderHandle _csh, bool _destroyShader)
 	{

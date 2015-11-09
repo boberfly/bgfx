@@ -29,6 +29,9 @@ namespace bgfx { namespace gl
 		{ GL_LINES,          2, 2, 0 },
 		{ GL_LINE_STRIP,     2, 1, 1 },
 		{ GL_POINTS,         1, 1, 0 },
+
+        { GL_PATCHES,        3, 3, 0 }, // TODO: Change m_min, m_div and m_sub if necessary
+        { GL_PATCHES,        4, 4, 0 },
 	};
 
 	static const char* s_primName[] =
@@ -38,6 +41,8 @@ namespace bgfx { namespace gl
 		"Line",
 		"LineStrip",
 		"Point",
+        "TriPatch",
+        "QuadPatch",
 	};
 
 	static const char* s_attribName[] =
@@ -471,6 +476,7 @@ namespace bgfx { namespace gl
 			ARB_shader_image_load_store,
 			ARB_shader_storage_buffer_object,
 			ARB_shader_texture_lod,
+            ARB_tessellation_shader,
 			ARB_texture_compression_bptc,
 			ARB_texture_compression_rgtc,
 			ARB_texture_float,
@@ -675,6 +681,7 @@ namespace bgfx { namespace gl
 		{ "ARB_shader_image_load_store",           BGFX_CONFIG_RENDERER_OPENGL >= 42, true  },
 		{ "ARB_shader_storage_buffer_object",      BGFX_CONFIG_RENDERER_OPENGL >= 43, true  },
 		{ "ARB_shader_texture_lod",                BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
+        { "ARB_tessellation_shader",               BGFX_CONFIG_RENDERER_OPENGL >= 40, true  },
 		{ "ARB_texture_compression_bptc",          BGFX_CONFIG_RENDERER_OPENGL >= 44, true  },
 		{ "ARB_texture_compression_rgtc",          BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "ARB_texture_float",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
@@ -1593,6 +1600,12 @@ namespace bgfx { namespace gl
 				|| s_extension[Extension::ARB_compute_shader].m_supported
 				;
 
+            const bool tesselationSupport = false
+                || !!(BGFX_CONFIG_RENDERER_OPENGLES >= 40)
+                || s_extension[Extension::ARB_tessellation_shader].m_supported
+                ;
+            
+
 			for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
 			{
 				uint8_t supported = 0;
@@ -1824,6 +1837,11 @@ namespace bgfx { namespace gl
 				? BGFX_CAPS_COMPUTE
 				: 0
 				;
+
+            g_caps.supported |= tesselationSupport
+                ? BGFX_CAPS_TESSELLATION
+                : 0
+                ;
 
 			g_caps.supported |= m_glctx.getCaps();
 
@@ -2097,10 +2115,14 @@ namespace bgfx { namespace gl
 			m_shaders[_handle.idx].destroy();
 		}
 
-		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh) BX_OVERRIDE
+		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh) BX_OVERRIDE
 		{
 			ShaderGL dummyFragmentShader;
-			m_program[_handle.idx].create(m_shaders[_vsh.idx], isValid(_fsh) ? m_shaders[_fsh.idx] : dummyFragmentShader);
+			m_program[_handle.idx].create(
+                m_shaders[_vsh.idx], 
+                isValid(_fsh) ? m_shaders[_fsh.idx] : dummyFragmentShader,
+                isValid(_hsh) ? m_shaders[_hsh.idx] : dummyFragmentShader,
+                isValid(_dsh) ? m_shaders[_dsh.idx] : dummyFragmentShader);
 		}
 
 		void destroyProgram(ProgramHandle _handle) BX_OVERRIDE
@@ -3371,10 +3393,10 @@ namespace bgfx { namespace gl
 		return UniformType::End;
 	}
 
-	void ProgramGL::create(const ShaderGL& _vsh, const ShaderGL& _fsh)
+	void ProgramGL::create(const ShaderGL& _vsh, const ShaderGL& _fsh, const ShaderGL& _hsh, const ShaderGL& _dsh)
 	{
 		m_id = glCreateProgram();
-		BX_TRACE("Program create: GL%d: GL%d, GL%d", m_id, _vsh.m_id, _fsh.m_id);
+		BX_TRACE("Program create: GL%d: GL%d, GL%d, GL%d, GL%d", m_id, _vsh.m_id, _fsh.m_id, _hsh.m_id, _dsh.m_id);
 
 		const uint64_t id = (uint64_t(_vsh.m_hash)<<32) | _fsh.m_hash;
 		const bool cached = s_renderGL->programFetchFromCache(m_id, id);
@@ -3390,6 +3412,16 @@ namespace bgfx { namespace gl
 				{
 					GL_CHECK(glAttachShader(m_id, _fsh.m_id) );
 				}
+
+                if (0 != _hsh.m_id)
+                {
+                    GL_CHECK(glAttachShader(m_id, _hsh.m_id));
+                }
+
+                if (0 != _dsh.m_id)
+                {
+                    GL_CHECK(glAttachShader(m_id, _dsh.m_id));
+                }
 
 				GL_CHECK(glLinkProgram(m_id) );
 				GL_CHECK(glGetProgramiv(m_id, GL_LINK_STATUS, &linked) );
@@ -4452,6 +4484,26 @@ namespace bgfx { namespace gl
 		memcpy(_str, _insert, len);
 	}
 
+    // TODO: Put this somewhere else 
+    const char * magic_to_string(uint32_t magic)
+    {
+        switch (magic)
+        {
+        case BGFX_CHUNK_MAGIC_FSH:
+            return "Fragment";
+        case BGFX_CHUNK_MAGIC_VSH:
+            return "Vertex";
+        case BGFX_CHUNK_MAGIC_CSH:
+            return "Compute";
+        case BGFX_CHUNK_MAGIC_HSH:
+            return "Hull";
+        case BGFX_CHUNK_MAGIC_DSH:
+            return "Domain";
+        }
+
+        return "Unknown";
+    }
+
 	void ShaderGL::create(Memory* _mem)
 	{
 		bx::MemoryReader reader(_mem->data, _mem->size);
@@ -4465,6 +4517,8 @@ namespace bgfx { namespace gl
 		case BGFX_CHUNK_MAGIC_CSH: m_type = GL_COMPUTE_SHADER;  break;
 		case BGFX_CHUNK_MAGIC_FSH: m_type = GL_FRAGMENT_SHADER;	break;
 		case BGFX_CHUNK_MAGIC_VSH: m_type = GL_VERTEX_SHADER;   break;
+        case BGFX_CHUNK_MAGIC_HSH: m_type = GL_TESS_CONTROL_SHADER;   break;
+        case BGFX_CHUNK_MAGIC_DSH: m_type = GL_TESS_EVALUATION_SHADER;   break;
 
 		default:
 			BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
@@ -4478,7 +4532,7 @@ namespace bgfx { namespace gl
 		bx::read(&reader, count);
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, magic_to_string(magic)
 			, count
 			);
 
@@ -4509,20 +4563,22 @@ namespace bgfx { namespace gl
 
 		m_id = glCreateShader(m_type);
 		BX_WARN(0 != m_id, "Failed to create %s shader."
-				, BGFX_CHUNK_MAGIC_FSH == magic ? "fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "vertex" : "compute"
+				, magic_to_string(magic)
 				);
 
 		const char* code = (const char*)reader.getDataPtr();
 
 		if (0 != m_id)
 		{
-			if (GL_COMPUTE_SHADER != m_type)
+			if (GL_FRAGMENT_SHADER == m_type || GL_VERTEX_SHADER == m_type)
 			{
 				int32_t codeLen = (int32_t)strlen(code);
 				int32_t tempLen = codeLen + (4<<10);
 				char* temp = (char*)alloca(tempLen);
 				bx::StaticMemoryBlockWriter writer(temp, tempLen);
 
+
+// ############################## OpenGL ES < 3.0 ##############################
 				if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES)
 				&&  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES < 30) )
 				{
@@ -4681,6 +4737,8 @@ namespace bgfx { namespace gl
 						memcpy(insert + 2, "fx", 2);
 					}
 				}
+
+// ############################## OpenGL <= 2.1 ##############################
 				else if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGL)
 					 &&  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGL <= 21) )
 				{
@@ -4759,6 +4817,8 @@ namespace bgfx { namespace gl
 					bx::write(&writer, code, codeLen);
 					bx::write(&writer, '\0');
 				}
+
+// ############################## OpenGL >= 3.1 ##############################
 				else if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGL   >= 31)
 					 ||  BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES >= 30) )
 				{
@@ -4855,7 +4915,27 @@ namespace bgfx { namespace gl
 				}
 
 				code = temp;
-			}
+            }
+            else if (GL_TESS_CONTROL_SHADER == m_type)
+            {
+                int32_t codeLen = (int32_t)strlen(code);
+                int32_t tempLen = codeLen + (4 << 10);
+                char* temp = (char*)alloca(tempLen);
+                bx::StaticMemoryBlockWriter writer(temp, tempLen);
+
+                // TODO: Make this configurable 
+                writeString(&writer, "#version 430\n");
+
+                bx::write(&writer, code, codeLen);
+                bx::write(&writer, '\0');
+                code = temp;
+            }
+
+            
+
+            BX_TRACE("*********************** %s ***********************\n%s\n**************************************************\n\n", 
+                magic_to_string(magic),
+                code);
 
 			GL_CHECK(glShaderSource(m_id, 1, (const GLchar**)&code, NULL) );
 			GL_CHECK(glCompileShader(m_id) );
@@ -6196,6 +6276,11 @@ namespace bgfx { namespace gl
 									numInstances      = draw.m_numInstances;
 									numPrimsRendered  = numPrimsSubmitted*draw.m_numInstances;
 
+                                    if (prim.m_type == GL_PATCHES)
+                                    {
+                                        GL_CHECK(glPatchParameteri(GL_PATCH_VERTICES, prim.m_div));
+                                    }
+
 									GL_CHECK(glDrawElementsInstanced(prim.m_type
 										, numIndices
 										, indexFormat
@@ -6209,6 +6294,11 @@ namespace bgfx { namespace gl
 									numPrimsSubmitted = numIndices/prim.m_div - prim.m_sub;
 									numInstances = draw.m_numInstances;
 									numPrimsRendered = numPrimsSubmitted*draw.m_numInstances;
+                                    
+                                    if (prim.m_type == GL_PATCHES)
+                                    {
+                                        GL_CHECK(glPatchParameteri(GL_PATCH_VERTICES, prim.m_div));
+                                    }
 
 									GL_CHECK(glDrawElementsInstanced(prim.m_type
 										, numIndices

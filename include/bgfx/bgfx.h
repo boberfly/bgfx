@@ -1210,6 +1210,10 @@ namespace bgfx
 	///
 	void destroyShader(ShaderHandle _handle);
 
+
+    ProgramHandle createProgram(ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh, bool _destroyShaders = false);
+
+
 	/// Create program with vertex and fragment shaders.
 	///
 	/// @param[in] _vsh Vertex shader.

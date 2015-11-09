@@ -61,6 +61,9 @@
 #define BGFX_STATE_PT_LINES              UINT64_C(0x0002000000000000) //!< Lines.
 #define BGFX_STATE_PT_LINESTRIP          UINT64_C(0x0003000000000000) //!< Line strip.
 #define BGFX_STATE_PT_POINTS             UINT64_C(0x0004000000000000) //!< Points.
+#define BGFX_STATE_PT_PATCH3             UINT64_C(0x0005000000000000) //!< Triangle Patches.
+#define BGFX_STATE_PT_PATCH4             UINT64_C(0x0006000000000000) //!< Quad Patches.
+
 #define BGFX_STATE_PT_SHIFT              48                           //!< Primitive type bit shift.
 #define BGFX_STATE_PT_MASK               UINT64_C(0x0007000000000000) //!< Primitive type bit mask.
 
@@ -376,6 +379,7 @@
 #define BGFX_CAPS_TEXTURE_BLIT           UINT64_C(0x0000000000010000) //!< Texture blit is supported.
 #define BGFX_CAPS_TEXTURE_READ_BACK      UINT64_C(0x0000000000020000) //!< Read-back texture is supported.
 #define BGFX_CAPS_OCCLUSION_QUERY        UINT64_C(0x0000000000040000) //!< Occlusion query is supported.
+#define BGFX_CAPS_TESSELLATION           UINT64_C(0x0000000000080000) //!< Tesselation control & evaluation shaders are supported
 
 ///
 #define BGFX_CAPS_FORMAT_TEXTURE_NONE             UINT16_C(0x0000) //!< Texture format is not supported.
