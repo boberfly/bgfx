@@ -10,11 +10,22 @@ add_library (
 set_target_properties(example-common PROPERTIES FOLDER "Examples")
 
 if(CMAKE_HOST_WINDOWS)
-	set(SHADERC_PLATFORM windows)
-	set(SHADERC_VERTEX_PROFILE vs_4_0)
-	set(SHADERC_FRAGMENT_PROFILE ps_4_0)
-	set(SHADERC_COMPUTE_PROFILE cs_5_0)
-	set(SHADER_PATH shaders/dx11)
+	set(SHADERC_PLATFORM linux)
+	#set(SHADERC_VERTEX_PROFILE vs_4_0)
+	#set(SHADERC_FRAGMENT_PROFILE ps_4_0)
+	#set(SHADERC_COMPUTE_PROFILE cs_5_0)
+	#set(SHADER_PATH shaders/dx11)
+	
+	set(SHADERC_VERTEX_PROFILE 140)
+	set(SHADERC_FRAGMENT_PROFILE 140)
+	set(SHADERC_COMPUTE_PROFILE 430)
+	set(SHADERC_HULL_PROFILE 430)
+	set(SHADERC_DOMAIN_PROFILE 430)
+	set(SHADER_PATH shaders/glsl)
+	
+	
+	
+	
 else(CMAKE_HOST_OSX || CMAKE_HOST_LINUX)
 	set(SHADERC_PLATFORM osx)
 	set(SHADERC_VERTEX_PROFILE 140)
@@ -82,6 +93,18 @@ macro(add_bgfx_example folderName)
 		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ${SHADERC_COMPUTE_PROFILE} compute ${SHADERC_PLATFORM}) 		
 	endforeach() 	
 	
+	## HULL SHADERS 
+	file(GLOB_RECURSE SHADER_SRC ${folderName}/hs_*.sc)	
+	foreach(SHADER_FILE_FULL ${SHADER_SRC})
+		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ${SHADERC_HULL_PROFILE} hull ${SHADERC_PLATFORM}) 		
+	endforeach() 	
+	
+	## DOMAIN SHADERS 
+	file(GLOB_RECURSE SHADER_SRC ${folderName}/ds_*.sc)	
+	foreach(SHADER_FILE_FULL ${SHADER_SRC})
+		execute_shader_compiler(${folderName} ${SHADER_FILE_FULL} ${SHADERC_DOMAIN_PROFILE} domain ${SHADERC_PLATFORM}) 		
+	endforeach() 	
+	
 endmacro()
 
 
@@ -111,4 +134,7 @@ add_bgfx_example(22-windows)
 add_bgfx_example(23-vectordisplay)
 add_bgfx_example(24-nbody)
 add_bgfx_example(25-c99)
+add_bgfx_example(26-occlusion)
+add_bgfx_example(27-tessellation)
+
 
