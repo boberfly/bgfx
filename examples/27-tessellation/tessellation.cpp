@@ -152,7 +152,7 @@ class Cubes : public entry::AppI
             u_TessLevel = bgfx::createUniform("TessLevel", bgfx::UniformType::Vec4);
 
             // Create program from shaders.
-            m_program = loadProgram("vs_tesselation", "fs_tesselation", "hs_tesselation", "ds_tesselation");
+            m_program = loadProgram("vs_tessellation", "fs_tessellation", "hs_tessellation", "ds_tessellation");
         }
 
 		m_timeOffset = bx::getHPCounter();

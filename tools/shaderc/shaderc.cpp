@@ -1352,44 +1352,22 @@ int main(int _argc, const char* _argv[])
                         if (varyingIt != varyingMap.end())
                         {
                             const Varying& var = varyingIt->second;
-                            const char* name = var.m_name.c_str();
+                            const char* name = var.m_name.c_str();                            
+                            printf("%s in %s %s %s%s;\n"
+                                , var.m_interpolation.c_str()
+                                , var.m_precision.c_str()
+                                , var.m_type.c_str()
+                                , name
+                                , needsArrayAnnotation ? "[]" : ""
+                                );
 
-                            if (0 == strncmp(name, "a_", 2)
-                                || 0 == strncmp(name, "i_", 2))
-                            {
-                                printf("attribute %s %s %s %s%s;\n", var.m_precision.c_str()
-                                    , var.m_interpolation.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsArrayAnnotation ? "[]" : ""
-                                    );
-
-                                preprocessor.writef("attribute %s %s %s %s%s;\n"
-                                    , var.m_precision.c_str()
-                                    , var.m_interpolation.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsArrayAnnotation ? "[]" : ""
-                                    );
-                            }
-                            else
-                            {
-                                printf("%s in %s %s %s%s;\n"
-                                    , var.m_interpolation.c_str()
-                                    , var.m_precision.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsArrayAnnotation ? "[]" : ""
-                                    );
-
-                                preprocessor.writef("%s in %s %s %s%s;\n"
-                                    , var.m_interpolation.c_str()
-                                    , var.m_precision.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsArrayAnnotation ? "[]" : ""
-                                    );
-                            }
+                            preprocessor.writef("%s in %s %s %s%s;\n"
+                                , var.m_interpolation.c_str()
+                                , var.m_precision.c_str()
+                                , var.m_type.c_str()
+                                , name
+                                , needsArrayAnnotation ? "[]" : ""
+                                );
                         }
                     }
 
@@ -1405,7 +1383,6 @@ int main(int _argc, const char* _argv[])
                                 , var.m_name.c_str()
                                 , needsArrayAnnotation ? "[]" : ""
                                 );
-
 
                             preprocessor.writef("%s out %s %s%s;\n"
                                 , var.m_interpolation.c_str()
@@ -1557,8 +1534,6 @@ int main(int _argc, const char* _argv[])
 							);
 					}
 
-                    const bool needsArrayAnnotation = ('h' == shaderType);
-
 					for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
 					{
 						VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
@@ -1570,37 +1545,20 @@ int main(int _argc, const char* _argv[])
 							if (0 == strncmp(name, "a_", 2)
 							||  0 == strncmp(name, "i_", 2) )
 							{
-                                printf("attribute %s %s %s %s%s;\n", var.m_precision.c_str()
-                                    , var.m_interpolation.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsArrayAnnotation ? "[]" : ""
-                                    );
-
-								preprocessor.writef("attribute %s %s %s %s%s;\n"
+								preprocessor.writef("attribute %s %s %s %s;\n"
 										, var.m_precision.c_str()
 										, var.m_interpolation.c_str()
 										, var.m_type.c_str()
 										, name
-                                        , needsArrayAnnotation ? "[]" : ""
 										);
 							}
 							else
 							{
-                                printf("%s varying %s %s %s%s;\n"
-                                    , var.m_interpolation.c_str()
-                                    , var.m_precision.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsArrayAnnotation ? "[]" : ""
-                                    );
-
-								preprocessor.writef("%s varying %s %s %s%s;\n"
+								preprocessor.writef("%s varying %s %s %s;\n"
 										, var.m_interpolation.c_str()
 										, var.m_precision.c_str()
 										, var.m_type.c_str()
 										, name
-                                        , needsArrayAnnotation ? "[]" : ""
 										);
 							}
 						}
