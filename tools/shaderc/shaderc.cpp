@@ -546,6 +546,7 @@ struct Preprocessor
 
 typedef std::vector<std::string> InOut;
 
+
 uint32_t parseInOut(InOut& _inout, const char* _str, const char* _eol)
 {
 	uint32_t hash = 0;
@@ -1014,8 +1015,10 @@ int main(int _argc, const char* _argv[])
 
 		InOut shaderInputs;
 		InOut shaderOutputs;
+        InOut shaderLayout;
 		uint32_t inputHash = 0;
 		uint32_t outputHash = 0;
+        uint32_t layoutHash = 0;
 
 		char* data;
 		char* input;
@@ -1057,6 +1060,13 @@ int main(int _argc, const char* _argv[])
 					raw = true;
 					str += 3;
 				}
+                else if (0 == strncmp(str, "layout", 3))
+                {
+                    str += 6;
+                    const char* comment = strstr(str, "//");
+                    eol = NULL != comment && comment < eol ? comment : eol;
+                    layoutHash = parseInOut(shaderLayout, str, eol);
+                }
 
 				input = const_cast<char*>(bx::strws(input) );
 			}
@@ -1330,7 +1340,6 @@ int main(int _argc, const char* _argv[])
         {
             compiled = false;
 
-
             char* entry = strstr(input, "void main()");
             if (NULL == entry)
             {
@@ -1342,6 +1351,43 @@ int main(int _argc, const char* _argv[])
                     || 0 != essl
                     || 0 != metal)
                 {
+                    // TODO: Are those reasonable defaults?
+                    std::string domain = "triangles";
+                    int vertexCount = 3;
+                    std::string spacing = "equal_spacing";
+                    std::string ordering = "cw";
+
+                    for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
+                    {
+                        if (*it == "cw" || *it == "ccw")
+                        {
+                            ordering = *it;
+                        } else if(*it == "triangles" || *it == "quads")
+                        {
+                            domain = *it;
+                        }
+                        else if (*it == "equal_spacing" || *it == "fractional_even_spacing" || *it == "fractional_odd_spacing")
+                        {
+                            spacing = *it;
+                        }
+                        else
+                        {
+                            vertexCount = std::stoi(*it);
+                        }                            
+                    }
+                    if ('h' == shaderType)
+                    {
+                        preprocessor.writef("layout(vertices = %d) out;\n", vertexCount);
+                    }
+                    else
+                    {
+                        preprocessor.writef("layout(%s, %s, %s) in;\n",
+                            domain.c_str(),
+                            spacing.c_str(),
+                            ordering.c_str());
+                    }
+
+
                     const bool needsInputArrayAnnotation = true;
                     for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
                     {
@@ -1393,6 +1439,7 @@ int main(int _argc, const char* _argv[])
                 }
                 else
                 {
+
                 }
 
                 if (preprocessor.run(input))

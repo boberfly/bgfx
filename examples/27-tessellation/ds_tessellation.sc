@@ -1,9 +1,8 @@
 $input hs_position, hs_color0
 $output ds_color0, ds_facetNormal, ds_patchDistance
+$layout triangles, 3, equal_spacing, cw
 
-layout(triangles, equal_spacing, cw) in;
-
-#include "../common/common.sh"
+#include <bgfx_shader.sh>
 
 void main()
 {
