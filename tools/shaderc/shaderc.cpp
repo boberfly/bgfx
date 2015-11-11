@@ -1347,204 +1347,223 @@ int main(int _argc, const char* _argv[])
             }
             else
             {
-                if (0 != glsl
-                    || 0 != essl
-                    || 0 != metal)
+                if ('h' == shaderType && NULL == strstr(input, "void main_perpatch()"))
                 {
-                    // TODO: Are those reasonable defaults?
-                    std::string domain = "triangles";
-                    int vertexCount = 3;
-                    std::string spacing = "equal_spacing";
-                    std::string ordering = "cw";
-
-                    for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
-                    {
-                        if (*it == "cw" || *it == "ccw")
-                        {
-                            ordering = *it;
-                        } else if(*it == "triangles" || *it == "quads")
-                        {
-                            domain = *it;
-                        }
-                        else if (*it == "equal_spacing" || *it == "fractional_even_spacing" || *it == "fractional_odd_spacing")
-                        {
-                            spacing = *it;
-                        }
-                        else
-                        {
-                            vertexCount = std::stoi(*it);
-                        }                            
-                    }
-                    if ('h' == shaderType)
-                    {
-                        preprocessor.writef("layout(vertices = %d) out;\n", vertexCount);
-                    }
-                    else
-                    {
-                        preprocessor.writef("layout(%s, %s, %s) in;\n",
-                            domain.c_str(),
-                            spacing.c_str(),
-                            ordering.c_str());
-                    }
-
-
-                    const bool needsInputArrayAnnotation = true;
-                    for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
-                    {
-                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-                        if (varyingIt != varyingMap.end())
-                        {
-                            const Varying& var = varyingIt->second;
-                            const char* name = var.m_name.c_str();                            
-                            printf("%s in %s %s %s%s;\n"
-                                , var.m_interpolation.c_str()
-                                , var.m_precision.c_str()
-                                , var.m_type.c_str()
-                                , name
-                                , needsInputArrayAnnotation ? "[]" : ""
-                                );
-
-                            preprocessor.writef("%s in %s %s %s%s;\n"
-                                , var.m_interpolation.c_str()
-                                , var.m_precision.c_str()
-                                , var.m_type.c_str()
-                                , name
-                                , needsInputArrayAnnotation ? "[]" : ""
-                                );
-                        }
-                    }
-
-                    const bool needsOutputArrayAnnotation = 'h' == shaderType;
-                    for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
-                    {
-                        VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
-                        if (varyingIt != varyingMap.end())
-                        {
-                            const Varying& var = varyingIt->second;
-                            printf("%s out %s %s%s;\n"
-                                , var.m_interpolation.c_str()
-                                , var.m_type.c_str()
-                                , var.m_name.c_str()
-                                , needsOutputArrayAnnotation ? "[]" : ""
-                                );
-
-                            preprocessor.writef("%s out %s %s%s;\n"
-                                , var.m_interpolation.c_str()
-                                , var.m_type.c_str()
-                                , var.m_name.c_str()
-                                , needsOutputArrayAnnotation ? "[]" : ""
-                                );
-                        }
-                    }
+                    fprintf(stderr, "Hull shader needs an 'void main_perpatch()' to be executed per patch.\n");
                 }
                 else
                 {
-
-                }
-
-                if (preprocessor.run(input))
-                {
-                    BX_TRACE("Input file: %s", filePath);
-                    BX_TRACE("Output file: %s", outFilePath);
-
-                    if (preprocessOnly)
+                    if (0 != glsl
+                        || 0 != essl
+                        || 0 != metal)
                     {
-                        // TODO: Implement
-                    }
+                        // TODO: Are those reasonable defaults?
+                        std::string domain = "triangles";
+                        int vertexCount = 3;
+                        std::string spacing = "equal_spacing";
+                        std::string ordering = "cw";
 
-                    {
-                        bx::CrtFileWriter* writer = NULL;
-
-                        if (NULL != bin2c)
+                        for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
                         {
-                            writer = new Bin2cWriter(bin2c);
-                        }
-                        else
-                        {
-                            writer = new bx::CrtFileWriter;
-                        }
-
-                        if (0 != writer->open(outFilePath))
-                        {
-                            fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
-                            return EXIT_FAILURE;
-                        }
-
-                        if ('d' == shaderType)
-                        {
-                            bx::write(writer, BGFX_CHUNK_MAGIC_DSH);
-                            bx::write(writer, outputHash);
-                        }
-                        else
-                        {
-                            bx::write(writer, BGFX_CHUNK_MAGIC_HSH);
-                            bx::write(writer, outputHash);
-                        }
-
-                        if (0 != glsl
-                            || 0 != essl
-                            || 0 != metal)
-                        {
-                            std::string code;
-
-                            code += preprocessor.m_preprocessed;
-
-                            if ('d' == shaderType || 'h' == shaderType)
+                            if (*it == "cw" || *it == "ccw")
                             {
-                                compiled = true;
-
-                                // 0 Uniforms for now
-                                uint16_t count = 0;
-                                bx::write(writer, count);
-
-                                uint32_t shaderSize = code.size();
-                                bx::write(writer, shaderSize);
-                                bx::write(writer, code.c_str(), code.size());
-                                uint8_t nul = 0;
-                                bx::write(writer, nul);
+                                ordering = *it;
+                            }
+                            else if (*it == "triangles" || *it == "quads")
+                            {
+                                domain = *it;
+                            }
+                            else if (*it == "equal_spacing" || *it == "fractional_even_spacing" || *it == "fractional_odd_spacing")
+                            {
+                                spacing = *it;
                             }
                             else
                             {
-                                compiled = compileGLSLShader(cmdLine
-                                    , metal ? BX_MAKEFOURCC('M', 'T', 'L', 0) : essl
-                                    , code
-                                    , writer
-                                    );
+                                vertexCount = std::stoi(*it);
                             }
+                        }
+
+                        if ('h' == shaderType)
+                        {
+                            preprocessor.writef("layout(vertices = %d) out;\n", vertexCount);
+
+                            // Call per patch function at the end of main in GLSL
+                            const char* brace = strstr(entry, "{");
+                            if (NULL != brace)
+                            {
+                                const char* end = bx::strmb(brace, '{', '}');
+                                if (NULL != end)
+                                {
+                                    strins(const_cast<char*>(end), "if(gl_InvocationID==0) { main_perpatch(); }\n");
+                                }
+                            }
+
+
                         }
                         else
                         {
-                            compiled = compileHLSLShader(cmdLine
-                                , d3d
-                                , preprocessor.m_preprocessed
-                                , writer
-                                );
+                            preprocessor.writef("layout(%s, %s, %s) in;\n",
+                                domain.c_str(),
+                                spacing.c_str(),
+                                ordering.c_str());
                         }
 
-                        writer->close();
-                        delete writer;
-                    }
 
-                    if (compiled)
-                    {
-                        if (depends)
+                        const bool needsInputArrayAnnotation = true;
+                        for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
                         {
-                            std::string ofp = outFilePath;
-                            ofp += ".d";
-                            bx::CrtFileWriter writer;
-                            if (0 == writer.open(ofp.c_str()))
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
                             {
-                                writef(&writer, "%s : %s\n", outFilePath, preprocessor.m_depends.c_str());
-                                writer.close();
+                                const Varying& var = varyingIt->second;
+                                const char* name = var.m_name.c_str();
+                                printf("%s in %s %s %s%s;\n"
+                                    , var.m_interpolation.c_str()
+                                    , var.m_precision.c_str()
+                                    , var.m_type.c_str()
+                                    , name
+                                    , needsInputArrayAnnotation ? "[]" : ""
+                                    );
+
+                                preprocessor.writef("%s in %s %s %s%s;\n"
+                                    , var.m_interpolation.c_str()
+                                    , var.m_precision.c_str()
+                                    , var.m_type.c_str()
+                                    , name
+                                    , needsInputArrayAnnotation ? "[]" : ""
+                                    );
+                            }
+                        }
+
+                        const bool needsOutputArrayAnnotation = 'h' == shaderType;
+                        for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+                                printf("%s out %s %s%s;\n"
+                                    , var.m_interpolation.c_str()
+                                    , var.m_type.c_str()
+                                    , var.m_name.c_str()
+                                    , needsOutputArrayAnnotation ? "[]" : ""
+                                    );
+
+                                preprocessor.writef("%s out %s %s%s;\n"
+                                    , var.m_interpolation.c_str()
+                                    , var.m_type.c_str()
+                                    , var.m_name.c_str()
+                                    , needsOutputArrayAnnotation ? "[]" : ""
+                                    );
                             }
                         }
                     }
+                    else
+                    {
+
+                    }
+
+                    if (preprocessor.run(input))
+                    {
+                        BX_TRACE("Input file: %s", filePath);
+                        BX_TRACE("Output file: %s", outFilePath);
+
+                        if (preprocessOnly)
+                        {
+                            // TODO: Implement
+                        }
+
+                        {
+                            bx::CrtFileWriter* writer = NULL;
+
+                            if (NULL != bin2c)
+                            {
+                                writer = new Bin2cWriter(bin2c);
+                            }
+                            else
+                            {
+                                writer = new bx::CrtFileWriter;
+                            }
+
+                            if (0 != writer->open(outFilePath))
+                            {
+                                fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
+                                return EXIT_FAILURE;
+                            }
+
+                            if ('d' == shaderType)
+                            {
+                                bx::write(writer, BGFX_CHUNK_MAGIC_DSH);
+                                bx::write(writer, outputHash);
+                            }
+                            else
+                            {
+                                bx::write(writer, BGFX_CHUNK_MAGIC_HSH);
+                                bx::write(writer, outputHash);
+                            }
+
+                            if (0 != glsl
+                                || 0 != essl
+                                || 0 != metal)
+                            {
+                                std::string code;
+
+                                code += preprocessor.m_preprocessed;
+
+                                if ('d' == shaderType || 'h' == shaderType)
+                                {
+                                    compiled = true;
+
+                                    // 0 Uniforms for now
+                                    uint16_t count = 0;
+                                    bx::write(writer, count);
+
+                                    uint32_t shaderSize = code.size();
+                                    bx::write(writer, shaderSize);
+                                    bx::write(writer, code.c_str(), code.size());
+                                    uint8_t nul = 0;
+                                    bx::write(writer, nul);
+                                }
+                                else
+                                {
+                                    compiled = compileGLSLShader(cmdLine
+                                        , metal ? BX_MAKEFOURCC('M', 'T', 'L', 0) : essl
+                                        , code
+                                        , writer
+                                        );
+                                }
+                            }
+                            else
+                            {
+                                compiled = compileHLSLShader(cmdLine
+                                    , d3d
+                                    , preprocessor.m_preprocessed
+                                    , writer
+                                    );
+                            }
+
+                            writer->close();
+                            delete writer;
+                        }
+
+                        if (compiled)
+                        {
+                            if (depends)
+                            {
+                                std::string ofp = outFilePath;
+                                ofp += ".d";
+                                bx::CrtFileWriter writer;
+                                if (0 == writer.open(ofp.c_str()))
+                                {
+                                    writef(&writer, "%s : %s\n", outFilePath, preprocessor.m_depends.c_str());
+                                    writer.close();
+                                }
+                            }
+                        }
+
+                    }
                 }
             }
-
-
-            /*bx::write(writer, BGFX_CHUNK_MAGIC_HSH);
-            bx::write(writer, outputHash);*/
         }
 		else // Vertex/Fragment
 		{
