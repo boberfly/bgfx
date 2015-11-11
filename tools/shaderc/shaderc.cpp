@@ -1460,7 +1460,102 @@ int main(int _argc, const char* _argv[])
                     }
                     else
                     {
+                        // TODO: Are those reasonable defaults?
+                        std::string domain = "triangles";
+                        int vertexCount = 3;
+                        std::string spacing = "equal_spacing";
+                        std::string ordering = "cw";
 
+                        for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
+                        {
+                            if (*it == "cw" || *it == "ccw")
+                            {
+                                ordering = *it == "cw" ? "triangle_cw" : "triangle_ccw";
+                            }
+                            else if (*it == "triangles" || *it == "quads")
+                            {
+                                domain = *it == "triangles" ? "tri" : "quad";
+                            }
+                            else if (*it == "equal_spacing" || *it == "fractional_even_spacing" || *it == "fractional_odd_spacing")
+                            {
+                                spacing = *it == "equal_spacing" ? "integer" : (*it == "fractional_even_spacing" ? "fractional_even" :"fractional_odd");
+                            }
+                            else
+                            {
+                                vertexCount = std::stoi(*it);
+                            }
+                        }
+
+                        preprocessor.writef(
+                            "struct ShaderOutput\n"
+                            "{\n");
+
+                        for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+                                preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                                preprocessor.writef("#define %s _output_.%s\n", var.m_name.c_str(), var.m_name.c_str());
+                            }
+                        }
+                        preprocessor.writef("};\n");
+
+                        preprocessor.writef(
+                            "struct ShaderInput\n"
+                            "{\n");
+
+                        for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+                                preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                                preprocessor.writef("#define %s _input_[gl_InvocationID].%s\n", var.m_name.c_str(), var.m_name.c_str());
+                            }
+                        }
+                        preprocessor.writef("};\n");
+
+
+                        entry[4] = '_';
+
+
+                        char hullAnnotation[1024];
+                        sprintf(hullAnnotation,
+                            "[domain(\"%s\")]\n"
+                            "[partitioning(\"%s\")]\n"
+                            "[outputtopology(\"%s\")]\n"
+                            "[outputcontrolpoints(%i)]\n"
+                            "[patchconstantfunc(\"main_perpatch\")]\n", 
+                            domain.c_str(),
+                            spacing.c_str(),
+                            ordering.c_str(),
+                            vertexCount
+                            );
+                        strins(const_cast<char*>(entry), hullAnnotation);
+
+                        preprocessor.writef("#define void_main()");
+                        preprocessor.writef(" \\\n\tShaderOutput main(");                        
+
+                        uint32_t arg = 0;
+                        
+
+                        preprocessor.writef(
+                            " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                        preprocessor.writef(
+                            " \\\n\t%suint gl_InvocationID : SV_OutputControlPointID"
+                            , arg++ > 0 ? ", " : "  "
+                            );
+
+                        preprocessor.writef(
+                            " \\\n\t)\n"
+                            );
                     }
 
                     if (preprocessor.run(input))

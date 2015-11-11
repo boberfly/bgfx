@@ -2,6 +2,8 @@ $input v_position, v_color0
 $output hs_position, hs_color0
 $layout triangles, 3, equal_spacing, cw
 
+#include <bgfx_shader.sh>
+
 uniform vec4 TessLevel;
 
 #define ID gl_InvocationID
@@ -16,6 +18,6 @@ void main_perpatch()
 
 void main()
 {
-    hs_position[ID] = v_position[ID];
-    hs_color0[ID] = v_color0[ID];
+    setHullOutput(hs_position, v_position, ID);
+    setHullOutput(hs_color0, v_color0, ID);
 }

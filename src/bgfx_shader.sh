@@ -169,6 +169,10 @@ vec4 bgfxTextureCubeLod(BgfxSamplerCube _sampler, vec3 _coord, float _level)
 #		define samplerCube BgfxSamplerCube
 #		define textureCube(_sampler, _coord) bgfxTextureCube(_sampler, _coord)
 #		define textureCubeLod(_sampler, _coord, _level) bgfxTextureCubeLod(_sampler, _coord, _level)
+
+#define setHullOutput(output, input, inputID) output = input
+
+
 #	else
 
 #		define sampler2DShadow sampler2D
@@ -311,6 +315,9 @@ float rcp(float _a) { return 1.0/_a; }
 vec2  rcp(vec2  _a) { return vec2(1.0)/_a; }
 vec3  rcp(vec3  _a) { return vec3(1.0)/_a; }
 vec4  rcp(vec4  _a) { return vec4(1.0)/_a; }
+
+#define setHullOutput(output, input, inputID) output[inputID] = input[inputID]
+
 #endif // BGFX_SHADER_LANGUAGE_*
 
 uniform vec4  u_viewRect;
