@@ -112,7 +112,7 @@ class Cubes : public entry::AppI
 		m_debug  = BGFX_DEBUG_TEXT;
 		m_reset  = BGFX_RESET_VSYNC;
 
-		bgfx::init(bgfx::RendererType::OpenGL, args.m_pciId);
+		bgfx::init(bgfx::RendererType::Direct3D11, args.m_pciId);
 		bgfx::reset(m_width, m_height, m_reset);
 
 		// Enable debug text.
@@ -128,6 +128,8 @@ class Cubes : public entry::AppI
 
         const bgfx::Caps* caps = bgfx::getCaps();
         tesselationSupported = !!(caps->supported & BGFX_CAPS_TESSELLATION);
+
+        tesselationSupported = false;
 
         if (tesselationSupported)
         {

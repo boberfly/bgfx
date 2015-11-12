@@ -1210,6 +1210,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				else if (m_featureLevel >= D3D_FEATURE_LEVEL_11_0)
 				{
 					g_caps.supported |= BGFX_CAPS_COMPUTE;
+                    g_caps.supported |= BGFX_CAPS_TESSELLATION;
 				}
 
 				// Instancing fully supported on 9_3+, optionally partially supported at lower levels.
