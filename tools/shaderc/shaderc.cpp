@@ -1347,7 +1347,8 @@ int main(int _argc, const char* _argv[])
             }
             else
             {
-                if ('h' == shaderType && NULL == strstr(input, "void main_perpatch()"))
+                char* perpatch_entry = strstr(input, "void main_perpatch()");
+                if ('h' == shaderType && NULL == perpatch_entry)
                 {
                     fprintf(stderr, "Hull shader needs an 'void main_perpatch()' to be executed per patch.\n");
                 }
@@ -1460,11 +1461,33 @@ int main(int _argc, const char* _argv[])
                     }
                     else
                     {
+                        perpatch_entry[4] = '_';
+                        entry[4] = '_';
+
+                        preprocessor.writef(
+                            "#define lowp\n"
+                            "#define mediump\n"
+                            "#define highp\n"
+                            "#define ivec2 int2\n"
+                            "#define ivec3 int3\n"
+                            "#define ivec4 int4\n"
+                            "#define uvec2 uint2\n"
+                            "#define uvec3 uint3\n"
+                            "#define uvec4 uint4\n"
+                            "#define vec2 float2\n"
+                            "#define vec3 float3\n"
+                            "#define vec4 float4\n"
+                            "#define mat2 float2x2\n"
+                            "#define mat3 float3x3\n"
+                            "#define mat4 float4x4\n"
+                            );
+
+                        // Extract tesselator settings from file
                         // TODO: Are those reasonable defaults?
-                        std::string domain = "triangles";
+                        std::string domain = "tri";
                         int vertexCount = 3;
-                        std::string spacing = "equal_spacing";
-                        std::string ordering = "cw";
+                        std::string spacing = "integer";
+                        std::string ordering = "triangle_cw";
 
                         for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
                         {
@@ -1486,6 +1509,7 @@ int main(int _argc, const char* _argv[])
                             }
                         }
 
+                        // Transform output variables to a shader output struct 
                         preprocessor.writef(
                             "struct ShaderOutput\n"
                             "{\n");
@@ -1502,6 +1526,7 @@ int main(int _argc, const char* _argv[])
                         }
                         preprocessor.writef("};\n");
 
+                        // Transform input variables to a shader input struct 
                         preprocessor.writef(
                             "struct ShaderInput\n"
                             "{\n");
@@ -1518,30 +1543,49 @@ int main(int _argc, const char* _argv[])
                         }
                         preprocessor.writef("};\n");
 
+                        preprocessor.writef(
+                            "struct ShaderConstantOutput\n"
+                            "{\n");
 
-                        entry[4] = '_';
+                        preprocessor.writef("\tfloat gl_TessLevelOuter[%i] : SV_TessFactor;\n", vertexCount);
+                        preprocessor.writef("#define gl_TessLevelOuter _constoutput_.gl_TessLevelOuter\n");
+
+                        preprocessor.writef("\tfloat gl_TessLevelInner[%i] : SV_InsideTessFactor;\n", vertexCount - 2);
+                        preprocessor.writef("#define gl_TessLevelInner _constoutput_.gl_TessLevelInner\n");
 
 
-                        char hullAnnotation[1024];
-                        sprintf(hullAnnotation,
-                            "[domain(\"%s\")]\n"
-                            "[partitioning(\"%s\")]\n"
-                            "[outputtopology(\"%s\")]\n"
-                            "[outputcontrolpoints(%i)]\n"
-                            "[patchconstantfunc(\"main_perpatch\")]\n", 
-                            domain.c_str(),
-                            spacing.c_str(),
-                            ordering.c_str(),
-                            vertexCount
-                            );
-                        strins(const_cast<char*>(entry), hullAnnotation);
+                        preprocessor.writef("};\n");
 
-                        preprocessor.writef("#define void_main()");
-                        preprocessor.writef(" \\\n\tShaderOutput main(");                        
-
-                        uint32_t arg = 0;
                         
 
+                        // modify main_perpatch to have actual input/output                         
+                        preprocessor.writef("\n#define void_main_perpatch()");
+                        preprocessor.writef(" \\\n\tShaderConstantOutput main_perpatch(");
+                        uint32_t arg = 0;
+                        preprocessor.writef(
+                            " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
+                            , arg++ > 0 ? ", " : "  "
+                            , vertexCount
+                            );
+
+                        preprocessor.writef(
+                            ") \\\n"
+                            "{ \\\n"
+                            "\tShaderConstantOutput _constoutput_;"
+                            );
+
+                        preprocessor.writef(
+                            "\n#define __RETURN_PER_PATCH__ \\\n"
+                            "\t} \\\n"
+                            "\treturn _constoutput_"
+                            );
+
+
+                        // modify main to have actual input/output                         
+                        preprocessor.writef("\n#define void_main()");
+                        preprocessor.writef(" \\\n\tShaderOutput main(");                        
+
+                        arg = 0;
                         preprocessor.writef(
                             " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
                                 , arg++ > 0 ? ", " : "  "
@@ -1554,8 +1598,54 @@ int main(int _argc, const char* _argv[])
                             );
 
                         preprocessor.writef(
-                            " \\\n\t)\n"
+                            ") \\\n"
+                            "{ \\\n"
+                            "\tShaderOutput _output_;"
                             );
+
+                        preprocessor.writef(
+                            "\n#define __RETURN__ \\\n"
+                            "\t} \\\n"
+                            "\treturn _output_"
+                            );
+
+                        // Insertions have to be done from bottom to top to avoid unecessary pointer operations
+                        const char* brace = strstr(entry, "{");
+                        if (NULL != brace)
+                        {
+                            const char* end = bx::strmb(brace, '{', '}');
+                            if (NULL != end)
+                            {
+                                strins(const_cast<char*>(end), "__RETURN__;\n");
+                            }
+                        }
+
+
+                        //  write hull shader annotation right before the main function
+                        char hullAnnotation[1024];
+                        sprintf(hullAnnotation,
+                            "[domain(\"%s\")]\n"
+                            "[partitioning(\"%s\")]\n"
+                            "[outputtopology(\"%s\")]\n"
+                            "[outputcontrolpoints(%i)]\n"
+                            "[patchconstantfunc(\"main_perpatch\")]\n",
+                            domain.c_str(),
+                            spacing.c_str(),
+                            ordering.c_str(),
+                            vertexCount
+                            );
+                        strins(const_cast<char*>(entry), hullAnnotation);
+
+
+                        const char* brace2 = strstr(perpatch_entry, "{");
+                        if (NULL != brace2)
+                        {
+                            const char* end = bx::strmb(brace2, '{', '}');
+                            if (NULL != end)
+                            {
+                                strins(const_cast<char*>(end), "__RETURN_PER_PATCH__;\n");
+                            }
+                        }
                     }
 
                     if (preprocessor.run(input))
@@ -1570,7 +1660,6 @@ int main(int _argc, const char* _argv[])
 
                         {
                             bx::CrtFileWriter* writer = NULL;
-
                             if (NULL != bin2c)
                             {
                                 writer = new Bin2cWriter(bin2c);
