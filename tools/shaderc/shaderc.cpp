@@ -1330,15 +1330,10 @@ int main(int _argc, const char* _argv[])
 				}
 			}
 		}
-        //else if ('d' == shaderType)
-        //{
-        //    compiled = true;
-        //    //bx::write(writer, BGFX_CHUNK_MAGIC_DSH);
-        //    //bx::write(writer, outputHash);
-        //}
         else if ('h' == shaderType || 'd' == shaderType)
         {
             compiled = false;
+            const bool isHullShader = 'h' == shaderType;
 
             char* entry = strstr(input, "void main()");
             if (NULL == entry)
@@ -1384,7 +1379,7 @@ int main(int _argc, const char* _argv[])
                             }
                         }
 
-                        if ('h' == shaderType)
+                        if (isHullShader)
                         {
                             preprocessor.writef("layout(vertices = %d) out;\n", vertexCount);
 
@@ -1418,13 +1413,6 @@ int main(int _argc, const char* _argv[])
                             {
                                 const Varying& var = varyingIt->second;
                                 const char* name = var.m_name.c_str();
-                                printf("%s in %s %s %s%s;\n"
-                                    , var.m_interpolation.c_str()
-                                    , var.m_precision.c_str()
-                                    , var.m_type.c_str()
-                                    , name
-                                    , needsInputArrayAnnotation ? "[]" : ""
-                                    );
 
                                 preprocessor.writef("%s in %s %s %s%s;\n"
                                     , var.m_interpolation.c_str()
@@ -1436,19 +1424,13 @@ int main(int _argc, const char* _argv[])
                             }
                         }
 
-                        const bool needsOutputArrayAnnotation = 'h' == shaderType;
+                        const bool needsOutputArrayAnnotation = isHullShader;
                         for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
                         {
                             VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
                             if (varyingIt != varyingMap.end())
                             {
                                 const Varying& var = varyingIt->second;
-                                printf("%s out %s %s%s;\n"
-                                    , var.m_interpolation.c_str()
-                                    , var.m_type.c_str()
-                                    , var.m_name.c_str()
-                                    , needsOutputArrayAnnotation ? "[]" : ""
-                                    );
 
                                 preprocessor.writef("%s out %s %s%s;\n"
                                     , var.m_interpolation.c_str()
@@ -1461,9 +1443,6 @@ int main(int _argc, const char* _argv[])
                     }
                     else
                     {
-                        perpatch_entry[4] = '_';
-                        entry[4] = '_';
-
                         preprocessor.writef(
                             "#define lowp\n"
                             "#define mediump\n"
@@ -1509,10 +1488,20 @@ int main(int _argc, const char* _argv[])
                             }
                         }
 
+                        const bool hasLocalPosition = NULL != strstr(input, "gl_Position");
+
                         // Transform output variables to a shader output struct 
                         preprocessor.writef(
                             "struct ShaderOutput\n"
                             "{\n");
+
+                        if (hasLocalPosition)
+                        {
+                            preprocessor.writef(
+                                "\tvec4 gl_Position : SV_POSITION;\n"
+                                "#define gl_Position _output_.gl_Position\n"
+                                );
+                        }
 
                         for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
                         {
@@ -1530,7 +1519,6 @@ int main(int _argc, const char* _argv[])
                         preprocessor.writef(
                             "struct ShaderInput\n"
                             "{\n");
-
                         for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
                         {
                             VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
@@ -1538,64 +1526,89 @@ int main(int _argc, const char* _argv[])
                             {
                                 const Varying& var = varyingIt->second;
                                 preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
-                                preprocessor.writef("#define %s _input_[gl_InvocationID].%s\n", var.m_name.c_str(), var.m_name.c_str());
+                                //preprocessor.writef("#define %s _input_[gl_InvocationID].%s\n", var.m_name.c_str(), var.m_name.c_str());
                             }
                         }
                         preprocessor.writef("};\n");
 
                         preprocessor.writef(
-                            "struct ShaderConstantOutput\n"
-                            "{\n");
+                            "struct %s\n"
+                            "{\n", isHullShader ? "ShaderConstantOutput" : "ShaderConstantInput");
 
                         preprocessor.writef("\tfloat gl_TessLevelOuter[%i] : SV_TessFactor;\n", vertexCount);
-                        preprocessor.writef("#define gl_TessLevelOuter _constoutput_.gl_TessLevelOuter\n");
+                        preprocessor.writef("#define gl_TessLevelOuter %s.gl_TessLevelOuter\n", isHullShader ? "_constoutput_" : "_constinput_");
 
                         preprocessor.writef("\tfloat gl_TessLevelInner[%i] : SV_InsideTessFactor;\n", vertexCount - 2);
-                        preprocessor.writef("#define gl_TessLevelInner _constoutput_.gl_TessLevelInner\n");
-
-
+                        preprocessor.writef("#define gl_TessLevelInner %s.gl_TessLevelInner\n", isHullShader ? "_constoutput_" : "_constinput_");
+                        
                         preprocessor.writef("};\n");
 
-                        
-
-                        // modify main_perpatch to have actual input/output                         
-                        preprocessor.writef("\n#define void_main_perpatch()");
-                        preprocessor.writef(" \\\n\tShaderConstantOutput main_perpatch(");
                         uint32_t arg = 0;
-                        preprocessor.writef(
-                            " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
-                            , arg++ > 0 ? ", " : "  "
-                            , vertexCount
-                            );
+                        // modify main_perpatch to have actual input/output                         
+                        if (isHullShader)
+                        {
+                            perpatch_entry[4] = '_';
 
-                        preprocessor.writef(
-                            ") \\\n"
-                            "{ \\\n"
-                            "\tShaderConstantOutput _constoutput_;"
-                            );
+                            preprocessor.writef("\n#define void_main_perpatch()");
+                            preprocessor.writef(" \\\n\tShaderConstantOutput main_perpatch(");
+                            preprocessor.writef(
+                                " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
 
-                        preprocessor.writef(
-                            "\n#define __RETURN_PER_PATCH__ \\\n"
-                            "\t} \\\n"
-                            "\treturn _constoutput_"
-                            );
+                            preprocessor.writef(
+                                ") \\\n"
+                                "{ \\\n"
+                                "\tShaderConstantOutput _constoutput_;"
+                                );
 
+                            preprocessor.writef(
+                                "\n#define __RETURN_PER_PATCH__ \\\n"
+                                "\t} \\\n"
+                                "\treturn _constoutput_"
+                                );
+                        }
 
+                        entry[4] = '_';
                         // modify main to have actual input/output                         
                         preprocessor.writef("\n#define void_main()");
                         preprocessor.writef(" \\\n\tShaderOutput main(");                        
 
                         arg = 0;
-                        preprocessor.writef(
-                            " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
+
+                        if (isHullShader)
+                        {
+                            preprocessor.writef(
+                                " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
                                 , arg++ > 0 ? ", " : "  "
                                 , vertexCount
                                 );
 
-                        preprocessor.writef(
-                            " \\\n\t%suint gl_InvocationID : SV_OutputControlPointID"
-                            , arg++ > 0 ? ", " : "  "
-                            );
+                            preprocessor.writef(
+                                " \\\n\t%suint gl_InvocationID : SV_OutputControlPointID"
+                                , arg++ > 0 ? ", " : "  "
+                                );
+                        }
+                        else {
+                            preprocessor.writef(
+                                " \\\n\t%sconst OutputPatch<ShaderInput, %i> _input_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                            preprocessor.writef(
+                                " \\\n\t%sfloat3 gl_TessCoord : SV_DomainLocation"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                            preprocessor.writef(
+                                " \\\n\t%sShaderConstantInput _constinput_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+                        }
 
                         preprocessor.writef(
                             ") \\\n"
@@ -1608,6 +1621,7 @@ int main(int _argc, const char* _argv[])
                             "\t} \\\n"
                             "\treturn _output_"
                             );
+
 
                         // Insertions have to be done from bottom to top to avoid unecessary pointer operations
                         const char* brace = strstr(entry, "{");
@@ -1623,27 +1637,38 @@ int main(int _argc, const char* _argv[])
 
                         //  write hull shader annotation right before the main function
                         char hullAnnotation[1024];
-                        sprintf(hullAnnotation,
-                            "[domain(\"%s\")]\n"
-                            "[partitioning(\"%s\")]\n"
-                            "[outputtopology(\"%s\")]\n"
-                            "[outputcontrolpoints(%i)]\n"
-                            "[patchconstantfunc(\"main_perpatch\")]\n",
-                            domain.c_str(),
-                            spacing.c_str(),
-                            ordering.c_str(),
-                            vertexCount
-                            );
+                        if (isHullShader)
+                        {
+                            sprintf(hullAnnotation,
+                                "[domain(\"%s\")]\n"
+                                "[partitioning(\"%s\")]\n"
+                                "[outputtopology(\"%s\")]\n"
+                                "[outputcontrolpoints(%i)]\n"
+                                "[patchconstantfunc(\"main_perpatch\")]\n",
+                                domain.c_str(),
+                                spacing.c_str(),
+                                ordering.c_str(),
+                                vertexCount
+                                );
+                        }
+                        else {
+                            sprintf(hullAnnotation,
+                                "[domain(\"%s\")]\n",
+                                domain.c_str()                                
+                                );
+                        }
                         strins(const_cast<char*>(entry), hullAnnotation);
 
-
-                        const char* brace2 = strstr(perpatch_entry, "{");
-                        if (NULL != brace2)
+                        if (isHullShader)
                         {
-                            const char* end = bx::strmb(brace2, '{', '}');
-                            if (NULL != end)
+                            const char* brace2 = strstr(perpatch_entry, "{");
+                            if (NULL != brace2)
                             {
-                                strins(const_cast<char*>(end), "__RETURN_PER_PATCH__;\n");
+                                const char* end = bx::strmb(brace2, '{', '}');
+                                if (NULL != end)
+                                {
+                                    strins(const_cast<char*>(end), "__RETURN_PER_PATCH__;\n");
+                                }
                             }
                         }
                     }

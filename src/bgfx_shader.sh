@@ -170,8 +170,8 @@ vec4 bgfxTextureCubeLod(BgfxSamplerCube _sampler, vec3 _coord, float _level)
 #		define textureCube(_sampler, _coord) bgfxTextureCube(_sampler, _coord)
 #		define textureCubeLod(_sampler, _coord, _level) bgfxTextureCubeLod(_sampler, _coord, _level)
 
-#define setHullOutput(output, input, inputID) output = input
-
+#define setHullOutput(output, input, inputID) output = _input_[inputID].input
+#define getHullOutput(input, inputID) _input_[inputID].input
 
 #	else
 
@@ -317,6 +317,7 @@ vec3  rcp(vec3  _a) { return vec3(1.0)/_a; }
 vec4  rcp(vec4  _a) { return vec4(1.0)/_a; }
 
 #define setHullOutput(output, input, inputID) output[inputID] = input[inputID]
+#define getHullOutput(input, inputID) input[inputID]
 
 #endif // BGFX_SHADER_LANGUAGE_*
 
