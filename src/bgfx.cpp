@@ -3,7 +3,20 @@
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
+#include <bx/platform.h>
+#if BX_PLATFORM_WINDOWS
+// BK - Remotery needs WinSock, but on VS2015/Win10 build
+//      fails if WinSock2 is included after Windows.h?!
+#	include <WinSock2.h>
+#endif // BX_PLATFORM_WINDOWS
+
 #include "bgfx_p.h"
+
+#if BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
+#	define RMT_USE_D3D11 BGFX_CONFIG_RENDERER_DIRECT3D11
+#	define RMT_USE_OPENGL 0
+#	include <remotery/lib/Remotery.c>
+#endif // BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
 
 namespace bgfx
 {
@@ -125,7 +138,7 @@ namespace bgfx
 #	define BGFX_CONFIG_MEMORY_TRACKING (BGFX_CONFIG_DEBUG && BX_CONFIG_SUPPORTS_THREADING)
 #endif // BGFX_CONFIG_MEMORY_TRACKING
 
-	class AllocatorStub : public bx::ReallocatorI
+	class AllocatorStub : public bx::AllocatorI
 	{
 	public:
 		AllocatorStub()
@@ -136,49 +149,50 @@ namespace bgfx
 		{
 		}
 
-		virtual void* alloc(size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
+		virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
 		{
-			if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
+			if (0 == _size)
 			{
-#if BGFX_CONFIG_MEMORY_TRACKING
+				if (NULL != _ptr)
 				{
-					bx::LwMutexScope scope(m_mutex);
-					++m_numBlocks;
-					m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
-				}
+					if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
+					{
+#if BGFX_CONFIG_MEMORY_TRACKING
+						{
+							bx::LwMutexScope scope(m_mutex);
+							BX_CHECK(m_numBlocks > 0, "Number of blocks is 0. Possible alloc/free mismatch?");
+							--m_numBlocks;
+						}
 #endif // BGFX_CONFIG_MEMORY_TRACKING
 
-				return ::malloc(_size);
+						::free(_ptr);
+					}
+					else
+					{
+						bx::alignedFree(this, _ptr, _align, _file, _line);
+					}
+				}
+
+				return NULL;
 			}
-
-			return bx::alignedAlloc(this, _size, _align, _file, _line);
-		}
-
-		virtual void free(void* _ptr, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
-		{
-			if (NULL != _ptr)
+			else if (NULL == _ptr)
 			{
 				if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
 				{
 #if BGFX_CONFIG_MEMORY_TRACKING
 					{
 						bx::LwMutexScope scope(m_mutex);
-						BX_CHECK(m_numBlocks > 0, "Number of blocks is 0. Possible alloc/free mismatch?");
-						--m_numBlocks;
+						++m_numBlocks;
+						m_maxBlocks = bx::uint32_max(m_maxBlocks, m_numBlocks);
 					}
 #endif // BGFX_CONFIG_MEMORY_TRACKING
 
-					::free(_ptr);
+					return ::malloc(_size);
 				}
-				else
-				{
-					bx::alignedFree(this, _ptr, _align, _file, _line);
-				}
-			}
-		}
 
-		virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
-		{
+				return bx::alignedAlloc(this, _size, _align, _file, _line);
+			}
+
 			if (BX_CONFIG_ALLOCATOR_NATURAL_ALIGNMENT >= _align)
 			{
 #if BGFX_CONFIG_MEMORY_TRACKING
@@ -211,7 +225,7 @@ namespace bgfx
 	static bool s_graphicsDebuggerPresent = false;
 
 	CallbackI* g_callback = NULL;
-	bx::ReallocatorI* g_allocator = NULL;
+	bx::AllocatorI* g_allocator = NULL;
 
 	Caps g_caps;
 
@@ -887,27 +901,34 @@ namespace bgfx
 
 	void Frame::blit(uint8_t _id, TextureHandle _dst, uint8_t _dstMip, uint16_t _dstX, uint16_t _dstY, uint16_t _dstZ, TextureHandle _src, uint8_t _srcMip, uint16_t _srcX, uint16_t _srcY, uint16_t _srcZ, uint16_t _width, uint16_t _height, uint16_t _depth)
 	{
-		uint16_t item = m_numBlitItems++;
+		BX_WARN(m_numBlitItems < BGFX_CONFIG_MAX_BLIT_ITEMS
+			, "Exceed number of available blit items per frame. BGFX_CONFIG_MAX_BLIT_ITEMS is %d. Skipping blit."
+			, BGFX_CONFIG_MAX_BLIT_ITEMS
+			);
+		if (m_numBlitItems < BGFX_CONFIG_MAX_BLIT_ITEMS)
+		{
+			uint16_t item = m_numBlitItems++;
 
-		BlitItem& bi = m_blitItem[item];
-		bi.m_srcX    = _srcX;
-		bi.m_srcY    = _srcY;
-		bi.m_srcZ    = _srcZ;
-		bi.m_dstX    = _dstX;
-		bi.m_dstY    = _dstY;
-		bi.m_dstZ    = _dstZ;
-		bi.m_width   = _width;
-		bi.m_height  = _height;
-		bi.m_depth   = _depth;
-		bi.m_srcMip  = _srcMip;
-		bi.m_dstMip  = _dstMip;
-		bi.m_src     = _src;
-		bi.m_dst     = _dst;
+			BlitItem& bi = m_blitItem[item];
+			bi.m_srcX    = _srcX;
+			bi.m_srcY    = _srcY;
+			bi.m_srcZ    = _srcZ;
+			bi.m_dstX    = _dstX;
+			bi.m_dstY    = _dstY;
+			bi.m_dstZ    = _dstZ;
+			bi.m_width   = _width;
+			bi.m_height  = _height;
+			bi.m_depth   = _depth;
+			bi.m_srcMip  = _srcMip;
+			bi.m_dstMip  = _dstMip;
+			bi.m_src     = _src;
+			bi.m_dst     = _dst;
 
-		BlitKey key;
-		key.m_view = _id;
-		key.m_item = item;
-		m_blitKeys[item] = key.encode();
+			BlitKey key;
+			key.m_view = _id;
+			key.m_item = item;
+			m_blitKeys[item] = key.encode();
+		}
 	}
 
 	void Frame::sort()
@@ -1353,6 +1374,7 @@ namespace bgfx
 			m_occlusionQuerySet.clear();
 		}
 
+		BGFX_PROFILER_SCOPE(bgfx, main_thread_frame, 0xff2040ff);
 		// wait for render thread to finish
 		renderSemWait();
 		frameNoRenderWait();
@@ -1428,8 +1450,10 @@ namespace bgfx
 
 	bool Context::renderFrame()
 	{
+		BGFX_PROFILER_SCOPE(bgfx, render_frame, 0xff2040ff);
+
 		if (m_rendererInitialized
-		&&  !m_flipAfterRender)
+		&& !m_flipAfterRender)
 		{
 			m_renderCtx->flip(m_render->m_hmd);
 		}
@@ -1439,6 +1463,7 @@ namespace bgfx
 		rendererExecCommands(m_render->m_cmdPre);
 		if (m_rendererInitialized)
 		{
+			BGFX_PROFILER_SCOPE(bgfx, render_submit, 0xff2040ff);
 			m_renderCtx->submit(m_render, m_clearQuad, m_textVideoMemBlitter);
 		}
 		rendererExecCommands(m_render->m_cmdPost);
@@ -2294,7 +2319,7 @@ again:
 		return s_rendererCreator[_type].name;
 	}
 
-	bool init(RendererType::Enum _type, uint16_t _vendorId, uint16_t _deviceId, CallbackI* _callback, bx::ReallocatorI* _allocator)
+	bool init(RendererType::Enum _type, uint16_t _vendorId, uint16_t _deviceId, CallbackI* _callback, bx::AllocatorI* _allocator)
 	{
 		BX_CHECK(NULL == s_ctx, "bgfx is already initialized.");
 
@@ -3542,21 +3567,11 @@ namespace bgfx
 		bgfx_callback_interface_t* m_interface;
 	};
 
-	class AllocatorC99 : public bx::ReallocatorI
+	class AllocatorC99 : public bx::AllocatorI
 	{
 	public:
 		virtual ~AllocatorC99()
 		{
-		}
-
-		virtual void* alloc(size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
-		{
-			return m_interface->vtbl->alloc(m_interface, _size, _align, _file, _line);
-		}
-
-		virtual void free(void* _ptr, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
-		{
-			m_interface->vtbl->free(m_interface, _ptr, _align, _file, _line);
 		}
 
 		virtual void* realloc(void* _ptr, size_t _size, size_t _align, const char* _file, uint32_t _line) BX_OVERRIDE
@@ -3564,7 +3579,7 @@ namespace bgfx
 			return m_interface->vtbl->realloc(m_interface, _ptr, _size, _align, _file, _line);
 		}
 
-		bgfx_reallocator_interface_t* m_interface;
+		bgfx_allocator_interface_t* m_interface;
 	};
 
 } // namespace bgfx
@@ -3643,7 +3658,7 @@ BGFX_C_API const char* bgfx_get_renderer_name(bgfx_renderer_type_t _type)
 	return bgfx::getRendererName(bgfx::RendererType::Enum(_type) );
 }
 
-BGFX_C_API bool bgfx_init(bgfx_renderer_type_t _type, uint16_t _vendorId, uint16_t _deviceId, bgfx_callback_interface_t* _callback, bgfx_reallocator_interface_t* _allocator)
+BGFX_C_API bool bgfx_init(bgfx_renderer_type_t _type, uint16_t _vendorId, uint16_t _deviceId, bgfx_callback_interface_t* _callback, bgfx_allocator_interface_t* _allocator)
 {
 	static bgfx::CallbackC99 s_callback;
 	s_callback.m_interface = _callback;
@@ -4334,4 +4349,149 @@ BGFX_C_API bgfx_render_frame_t bgfx_render_frame()
 BGFX_C_API void bgfx_set_platform_data(bgfx_platform_data_t* _pd)
 {
 	bgfx::setPlatformData(*(bgfx::PlatformData*)_pd);
+}
+
+BGFX_C_API bgfx_interface_vtbl_t* bgfx_get_interface(uint32_t _version)
+{
+	if (_version == BGFX_API_VERSION)
+	{
+#define BGFX_IMPORT \
+	BGFX_IMPORT_FUNC(render_frame) \
+	BGFX_IMPORT_FUNC(set_platform_data) \
+	BGFX_IMPORT_FUNC(vertex_decl_begin) \
+	BGFX_IMPORT_FUNC(vertex_decl_add) \
+	BGFX_IMPORT_FUNC(vertex_decl_skip) \
+	BGFX_IMPORT_FUNC(vertex_decl_end) \
+	BGFX_IMPORT_FUNC(vertex_pack) \
+	BGFX_IMPORT_FUNC(vertex_unpack) \
+	BGFX_IMPORT_FUNC(vertex_convert) \
+	BGFX_IMPORT_FUNC(weld_vertices) \
+	BGFX_IMPORT_FUNC(image_swizzle_bgra8) \
+	BGFX_IMPORT_FUNC(image_rgba8_downsample_2x2) \
+	BGFX_IMPORT_FUNC(get_supported_renderers) \
+	BGFX_IMPORT_FUNC(get_renderer_name) \
+	BGFX_IMPORT_FUNC(init) \
+	BGFX_IMPORT_FUNC(shutdown) \
+	BGFX_IMPORT_FUNC(reset) \
+	BGFX_IMPORT_FUNC(frame) \
+	BGFX_IMPORT_FUNC(get_renderer_type) \
+	BGFX_IMPORT_FUNC(get_caps) \
+	BGFX_IMPORT_FUNC(get_hmd) \
+	BGFX_IMPORT_FUNC(get_stats) \
+	BGFX_IMPORT_FUNC(alloc) \
+	BGFX_IMPORT_FUNC(copy) \
+	BGFX_IMPORT_FUNC(make_ref) \
+	BGFX_IMPORT_FUNC(make_ref_release) \
+	BGFX_IMPORT_FUNC(set_debug) \
+	BGFX_IMPORT_FUNC(dbg_text_clear) \
+	BGFX_IMPORT_FUNC(dbg_text_printf) \
+	BGFX_IMPORT_FUNC(dbg_text_image) \
+	BGFX_IMPORT_FUNC(create_index_buffer) \
+	BGFX_IMPORT_FUNC(destroy_index_buffer) \
+	BGFX_IMPORT_FUNC(create_vertex_buffer) \
+	BGFX_IMPORT_FUNC(destroy_vertex_buffer) \
+	BGFX_IMPORT_FUNC(create_dynamic_index_buffer) \
+	BGFX_IMPORT_FUNC(create_dynamic_index_buffer_mem) \
+	BGFX_IMPORT_FUNC(update_dynamic_index_buffer) \
+	BGFX_IMPORT_FUNC(destroy_dynamic_index_buffer) \
+	BGFX_IMPORT_FUNC(create_dynamic_vertex_buffer) \
+	BGFX_IMPORT_FUNC(create_dynamic_vertex_buffer_mem) \
+	BGFX_IMPORT_FUNC(update_dynamic_vertex_buffer) \
+	BGFX_IMPORT_FUNC(destroy_dynamic_vertex_buffer) \
+	BGFX_IMPORT_FUNC(check_avail_transient_index_buffer) \
+	BGFX_IMPORT_FUNC(check_avail_transient_vertex_buffer) \
+	BGFX_IMPORT_FUNC(check_avail_instance_data_buffer) \
+	BGFX_IMPORT_FUNC(check_avail_transient_buffers) \
+	BGFX_IMPORT_FUNC(alloc_transient_index_buffer) \
+	BGFX_IMPORT_FUNC(alloc_transient_vertex_buffer) \
+	BGFX_IMPORT_FUNC(alloc_transient_buffers) \
+	BGFX_IMPORT_FUNC(alloc_instance_data_buffer) \
+	BGFX_IMPORT_FUNC(create_indirect_buffer) \
+	BGFX_IMPORT_FUNC(destroy_indirect_buffer) \
+	BGFX_IMPORT_FUNC(create_shader) \
+	BGFX_IMPORT_FUNC(get_shader_uniforms) \
+	BGFX_IMPORT_FUNC(destroy_shader) \
+	BGFX_IMPORT_FUNC(create_program) \
+	BGFX_IMPORT_FUNC(create_compute_program) \
+	BGFX_IMPORT_FUNC(destroy_program) \
+	BGFX_IMPORT_FUNC(calc_texture_size) \
+	BGFX_IMPORT_FUNC(create_texture) \
+	BGFX_IMPORT_FUNC(create_texture_2d) \
+	BGFX_IMPORT_FUNC(create_texture_2d_scaled) \
+	BGFX_IMPORT_FUNC(create_texture_3d) \
+	BGFX_IMPORT_FUNC(create_texture_cube) \
+	BGFX_IMPORT_FUNC(update_texture_2d) \
+	BGFX_IMPORT_FUNC(update_texture_3d) \
+	BGFX_IMPORT_FUNC(update_texture_cube) \
+	BGFX_IMPORT_FUNC(destroy_texture) \
+	BGFX_IMPORT_FUNC(create_frame_buffer) \
+	BGFX_IMPORT_FUNC(create_frame_buffer_scaled) \
+	BGFX_IMPORT_FUNC(create_frame_buffer_from_handles) \
+	BGFX_IMPORT_FUNC(create_frame_buffer_from_nwh) \
+	BGFX_IMPORT_FUNC(destroy_frame_buffer) \
+	BGFX_IMPORT_FUNC(create_uniform) \
+	BGFX_IMPORT_FUNC(destroy_uniform) \
+	BGFX_IMPORT_FUNC(create_occlusion_query) \
+	BGFX_IMPORT_FUNC(get_result) \
+	BGFX_IMPORT_FUNC(destroy_occlusion_query) \
+	BGFX_IMPORT_FUNC(set_palette_color) \
+	BGFX_IMPORT_FUNC(set_view_name) \
+	BGFX_IMPORT_FUNC(set_view_rect) \
+	BGFX_IMPORT_FUNC(set_view_scissor) \
+	BGFX_IMPORT_FUNC(set_view_clear) \
+	BGFX_IMPORT_FUNC(set_view_clear_mrt) \
+	BGFX_IMPORT_FUNC(set_view_seq) \
+	BGFX_IMPORT_FUNC(set_view_frame_buffer) \
+	BGFX_IMPORT_FUNC(set_view_transform) \
+	BGFX_IMPORT_FUNC(set_view_transform_stereo) \
+	BGFX_IMPORT_FUNC(set_view_remap) \
+	BGFX_IMPORT_FUNC(set_marker) \
+	BGFX_IMPORT_FUNC(set_state) \
+	BGFX_IMPORT_FUNC(set_condition) \
+	BGFX_IMPORT_FUNC(set_stencil) \
+	BGFX_IMPORT_FUNC(set_scissor) \
+	BGFX_IMPORT_FUNC(set_scissor_cached) \
+	BGFX_IMPORT_FUNC(set_transform) \
+	BGFX_IMPORT_FUNC(alloc_transform) \
+	BGFX_IMPORT_FUNC(set_transform_cached) \
+	BGFX_IMPORT_FUNC(set_uniform) \
+	BGFX_IMPORT_FUNC(set_index_buffer) \
+	BGFX_IMPORT_FUNC(set_dynamic_index_buffer) \
+	BGFX_IMPORT_FUNC(set_transient_index_buffer) \
+	BGFX_IMPORT_FUNC(set_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_dynamic_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_transient_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_instance_data_buffer) \
+	BGFX_IMPORT_FUNC(set_instance_data_from_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_instance_data_from_dynamic_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_texture) \
+	BGFX_IMPORT_FUNC(set_texture_from_frame_buffer) \
+	BGFX_IMPORT_FUNC(touch) \
+	BGFX_IMPORT_FUNC(submit) \
+	BGFX_IMPORT_FUNC(submit_occlusion_query) \
+	BGFX_IMPORT_FUNC(submit_indirect) \
+	BGFX_IMPORT_FUNC(set_image) \
+	BGFX_IMPORT_FUNC(set_image_from_frame_buffer) \
+	BGFX_IMPORT_FUNC(set_compute_index_buffer) \
+	BGFX_IMPORT_FUNC(set_compute_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_compute_dynamic_index_buffer) \
+	BGFX_IMPORT_FUNC(set_compute_dynamic_vertex_buffer) \
+	BGFX_IMPORT_FUNC(set_compute_indirect_buffer) \
+	BGFX_IMPORT_FUNC(dispatch) \
+	BGFX_IMPORT_FUNC(dispatch_indirect) \
+	BGFX_IMPORT_FUNC(discard) \
+	BGFX_IMPORT_FUNC(blit) \
+	BGFX_IMPORT_FUNC(save_screen_shot)
+
+		static bgfx_interface_vtbl_t s_bgfx_interface =
+		{
+#define BGFX_IMPORT_FUNC(_name) bgfx_##_name,
+			BGFX_IMPORT
+#undef BGFX_IMPORT_FUNC
+		};
+
+		return &s_bgfx_interface;
+	}
+
+	return NULL;
 }

@@ -49,6 +49,32 @@
 				, _handleAlloc.getMaxHandles() \
 				)
 
+#ifndef BGFX_PROFILER_SCOPE
+#	if BGFX_CONFIG_PROFILER_MICROPROFILE
+#		include <microprofile.h>
+#		define BGFX_PROFILER_SCOPE(_group, _name, _color) MICROPROFILE_SCOPEI(#_group, #_name, _color)
+#		define BGFX_PROFILER_BEGIN(_group, _name, _color) BX_NOOP()
+#		define BGFX_PROFILER_BEGIN_DYNAMIC(_namestr) BX_NOOP()
+#		define BGFX_PROFILER_END() BX_NOOP()
+#		define BGFX_PROFILER_SET_CURRENT_THREAD_NAME(_name) BX_NOOP()
+#	elif BGFX_CONFIG_PROFILER_REMOTERY
+#		define RMT_ENABLED BGFX_CONFIG_PROFILER_REMOTERY
+#		define RMT_USE_D3D11 BGFX_CONFIG_RENDERER_DIRECT3D11
+#		include <remotery/lib/Remotery.h>
+#		define BGFX_PROFILER_SCOPE(_group, _name, _color) rmt_ScopedCPUSample(_group##_##_name)
+#		define BGFX_PROFILER_BEGIN(_group, _name, _color) rmt_BeginCPUSample(_group##_##_name)
+#		define BGFX_PROFILER_BEGIN_DYNAMIC(_namestr) rmt_BeginCPUSampleDynamic(_namestr)
+#		define BGFX_PROFILER_END() rmt_EndCPUSample()
+#		define BGFX_PROFILER_SET_CURRENT_THREAD_NAME(_name) rmt_SetCurrentThreadName(_name)
+#	else
+#		define BGFX_PROFILER_SCOPE(_group, _name, _color) BX_NOOP()
+#		define BGFX_PROFILER_BEGIN(_group, _name, _color) BX_NOOP()
+#		define BGFX_PROFILER_BEGIN_DYNAMIC(_namestr) BX_NOOP()
+#		define BGFX_PROFILER_END() BX_NOOP()
+#		define BGFX_PROFILER_SET_CURRENT_THREAD_NAME(_name) BX_NOOP()
+#	endif // BGFX_CONFIG_PROFILER_*
+#endif // BGFX_PROFILER_SCOPE
+
 namespace bgfx
 {
 #if BX_COMPILER_CLANG_ANALYZER
@@ -305,7 +331,7 @@ namespace bgfx
 
 	extern const uint32_t g_uniformTypeSize[UniformType::Count+1];
 	extern CallbackI* g_callback;
-	extern bx::ReallocatorI* g_allocator;
+	extern bx::AllocatorI* g_allocator;
 	extern Caps g_caps;
 
 	void setGraphicsDebuggerPresent(bool _present);
@@ -836,7 +862,7 @@ namespace bgfx
 		uint32_t reserve(uint16_t* _num)
 		{
 			uint32_t num = *_num;
-			BX_CHECK(m_num+num < BGFX_CONFIG_MAX_MATRIX_CACHE, "Matrix cache overflow. %d (max: %d)", m_num+num, BGFX_CONFIG_MAX_MATRIX_CACHE);
+			BX_WARN(m_num+num < BGFX_CONFIG_MAX_MATRIX_CACHE, "Matrix cache overflow. %d (max: %d)", m_num+num, BGFX_CONFIG_MAX_MATRIX_CACHE);
 			num = bx::uint32_min(num, BGFX_CONFIG_MAX_MATRIX_CACHE-m_num);
 			uint32_t first = m_num;
 			m_num += num;
@@ -2027,6 +2053,7 @@ namespace bgfx
 		static int32_t renderThread(void* /*_userData*/)
 		{
 			BX_TRACE("render thread start");
+			BGFX_PROFILER_SET_CURRENT_THREAD_NAME("bgfx - Render Thread");
 			while (RenderFrame::Exiting != bgfx::renderFrame() ) {};
 			BX_TRACE("render thread exit");
 			return EXIT_SUCCESS;
@@ -3886,6 +3913,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
+				BGFX_PROFILER_SCOPE(bgfx, main_thread_wait, 0xff2040ff);
 				int64_t start = bx::getHPCounter();
 				bool ok = m_gameSem.wait();
 				BX_CHECK(ok, "Semaphore wait failed."); BX_UNUSED(ok);
@@ -3905,6 +3933,7 @@ namespace bgfx
 		{
 			if (!m_singleThreaded)
 			{
+				BGFX_PROFILER_SCOPE(bgfx, render_thread_wait, 0xff2040ff);
 				int64_t start = bx::getHPCounter();
 				bool ok = m_renderSem.wait();
 				BX_CHECK(ok, "Semaphore wait failed."); BX_UNUSED(ok);

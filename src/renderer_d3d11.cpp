@@ -13,9 +13,24 @@
 #	include <windows.ui.xaml.media.dxinterop.h>
 #endif // BX_PLATFORM_WINRT
 
+#if BGFX_CONFIG_PROFILER_REMOTERY
+#	define BGFX_GPU_PROFILER_BIND(_device, _context) rmt_BindD3D11(_device, _context)
+#	define BGFX_GPU_PROFILER_UNBIND() rmt_UnbindD3D11()
+#	define BGFX_GPU_PROFILER_BEGIN(_group, _name, _color) rmt_BeginD3D11Sample(_group##_##_name)
+#	define BGFX_GPU_PROFILER_BEGIN_DYNAMIC(_namestr) rmt_BeginD3D11SampleDynamic(_namestr)
+#	define BGFX_GPU_PROFILER_END() rmt_EndD3D11Sample()
+#else
+#	define BGFX_GPU_PROFILER_BIND(_device, _context) BX_NOOP()
+#	define BGFX_GPU_PROFILER_UNBIND() BX_NOOP()
+#	define BGFX_GPU_PROFILER_BEGIN(_group, _name, _color) BX_NOOP()
+#	define BGFX_GPU_PROFILER_BEGIN_DYNAMIC(_namestr) BX_NOOP()
+#	define BGFX_GPU_PROFILER_END() BX_NOOP()
+#endif
+
 namespace bgfx { namespace d3d11
 {
 	static wchar_t s_viewNameW[BGFX_CONFIG_MAX_VIEWS][BGFX_CONFIG_MAX_VIEW_NAME];
+	static char s_viewName[BGFX_CONFIG_MAX_VIEWS][BGFX_CONFIG_MAX_VIEW_NAME];
 
 	struct PrimInfo
 	{
@@ -1412,9 +1427,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				// Init reserved part of view name.
 				for (uint32_t ii = 0; ii < BGFX_CONFIG_MAX_VIEWS; ++ii)
 				{
-					char name[BGFX_CONFIG_MAX_VIEW_NAME_RESERVED+1];
-					bx::snprintf(name, sizeof(name), "%3d   ", ii);
-					mbstowcs(s_viewNameW[ii], name, BGFX_CONFIG_MAX_VIEW_NAME_RESERVED);
+					bx::snprintf(s_viewName[ii], BGFX_CONFIG_MAX_VIEW_NAME_RESERVED + 1, "%3d   ", ii);
+					mbstowcs(s_viewNameW[ii], s_viewName[ii], BGFX_CONFIG_MAX_VIEW_NAME_RESERVED);
 				}
 
 				if (BX_ENABLED(BGFX_CONFIG_DEBUG)
@@ -1456,6 +1470,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				postReset();
 			}
 
+			BGFX_GPU_PROFILER_BIND(m_device, m_deviceCtx);
 			return true;
 
 		error:
@@ -1508,6 +1523,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		void shutdown()
 		{
+			BGFX_GPU_PROFILER_UNBIND();
+
 			preReset();
 			m_ovr.shutdown();
 
@@ -1875,6 +1892,11 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					, BX_COUNTOF(s_viewNameW[0])-BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
 					);
 			}
+
+			bx::strlcpy(&s_viewName[_id][BGFX_CONFIG_MAX_VIEW_NAME_RESERVED]
+				, _name
+				, BX_COUNTOF(s_viewName[0]) - BGFX_CONFIG_MAX_VIEW_NAME_RESERVED
+				);
 		}
 
 		void updateUniform(uint16_t _loc, const void* _data, uint32_t _size) BX_OVERRIDE
@@ -4548,7 +4570,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			DX_CHECK(device->CreateQuery(&query, &frame.m_disjoint) );
 
 			query.Query = D3D11_QUERY_TIMESTAMP;
-			DX_CHECK(device->CreateQuery(&query, &frame.m_start) );
+			DX_CHECK(device->CreateQuery(&query, &frame.m_begin) );
 			DX_CHECK(device->CreateQuery(&query, &frame.m_end) );
 		}
 
@@ -4563,7 +4585,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		{
 			Frame& frame = m_frame[ii];
 			DX_RELEASE(frame.m_disjoint, 0);
-			DX_RELEASE(frame.m_start, 0);
+			DX_RELEASE(frame.m_begin, 0);
 			DX_RELEASE(frame.m_end, 0);
 		}
 	}
@@ -4579,7 +4601,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		Frame& frame = m_frame[m_control.m_current];
 		deviceCtx->Begin(frame.m_disjoint);
-		deviceCtx->End(frame.m_start);
+		deviceCtx->End(frame.m_begin);
 	}
 
 	void TimerQueryD3D11::end()
@@ -4598,8 +4620,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			ID3D11DeviceContext* deviceCtx = s_renderD3D11->m_deviceCtx;
 			Frame& frame = m_frame[m_control.m_read];
 
-			uint64_t finish;
-			HRESULT hr = deviceCtx->GetData(frame.m_end, &finish, sizeof(finish), D3D11_ASYNC_GETDATA_DONOTFLUSH);
+			uint64_t timeEnd;
+			HRESULT hr = deviceCtx->GetData(frame.m_end, &timeEnd, sizeof(timeEnd), D3D11_ASYNC_GETDATA_DONOTFLUSH);
 			if (S_OK == hr)
 			{
 				m_control.consume(1);
@@ -4613,11 +4635,13 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				D3D11_QUERY_DATA_TIMESTAMP_DISJOINT disjoint;
 				deviceCtx->GetData(frame.m_disjoint, &disjoint, sizeof(disjoint), 0);
 
-				uint64_t start;
-				deviceCtx->GetData(frame.m_start, &start, sizeof(start), 0);
+				uint64_t timeBegin;
+				deviceCtx->GetData(frame.m_begin, &timeBegin, sizeof(timeBegin), 0);
 
 				m_frequency = disjoint.Frequency;
-				m_elapsed   = finish - start;
+				m_begin     = timeBegin;
+				m_end       = timeEnd;
+				m_elapsed   = timeEnd - timeBegin;
 
 				return true;
 			}
@@ -4693,6 +4717,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 	void RendererContextD3D11::submit(Frame* _render, ClearQuad& _clearQuad, TextVideoMemBlitter& _textVideoMemBlitter)
 	{
 		PIX_BEGINEVENT(D3DCOLOR_RGBA(0xff, 0x00, 0x00, 0xff), L"rendererSubmit");
+		BGFX_GPU_PROFILER_BEGIN_DYNAMIC("rendererSubmit");
 
 		ID3D11DeviceContext* deviceCtx = m_deviceCtx;
 
@@ -4825,6 +4850,13 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					}
 
 					PIX_ENDEVENT();
+					if (item > 1)
+					{
+						BGFX_GPU_PROFILER_END();
+						BGFX_PROFILER_END();
+					}
+					BGFX_PROFILER_BEGIN_DYNAMIC(s_viewName[view]);
+					BGFX_GPU_PROFILER_BEGIN_DYNAMIC(s_viewName[view]);
 
 					viewState.m_rect = _render->m_rect[view];
 					if (viewRestart)
@@ -5608,15 +5640,23 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 				captureElapsed = -bx::getHPCounter();
 				capture();
 				captureElapsed += bx::getHPCounter();
+
+				BGFX_GPU_PROFILER_END();
+				BGFX_PROFILER_END();
 			}
 		}
 
 		PIX_ENDEVENT();
+		BGFX_GPU_PROFILER_END();
 
 		int64_t now = bx::getHPCounter();
 		elapsed += now;
 
 		static int64_t last = now;
+
+		Stats& perfStats = _render->m_perfStats;
+		perfStats.cpuTimeBegin = last;
+
 		int64_t frameTime = now - last;
 		last = now;
 
@@ -5641,10 +5681,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		const int64_t timerFreq = bx::getHPFrequency();
 
-		Stats& perfStats   = _render->m_perfStats;
-		perfStats.cpuTime      = frameTime;
+		perfStats.cpuTimeEnd   = now;
 		perfStats.cpuTimerFreq = timerFreq;
-		perfStats.gpuTime      = m_gpuTimer.m_elapsed;
+		perfStats.gpuTimeBegin = m_gpuTimer.m_begin;
+		perfStats.gpuTimeEnd   = m_gpuTimer.m_end;
 		perfStats.gpuTimerFreq = m_gpuTimer.m_frequency;
 
 		if (_render->m_debug & (BGFX_DEBUG_IFH|BGFX_DEBUG_STATS) )

@@ -19,7 +19,7 @@
 
 #define BGFX_INVALID_HANDLE { bgfx::invalidHandle }
 
-namespace bx { struct ReallocatorI; }
+namespace bx { struct AllocatorI; }
 
 /// BGFX
 namespace bgfx
@@ -444,21 +444,7 @@ namespace bgfx
 
 		/// Supported functionality.
 		///
-		/// - `BGFX_CAPS_TEXTURE_COMPARE_LEQUAL` - Less equal texture
-		///      compare mode.
-		/// - `BGFX_CAPS_TEXTURE_COMPARE_ALL` - All texture compare modes.
-		/// - `BGFX_CAPS_TEXTURE_3D` - 3D textures.
-		/// - `BGFX_CAPS_VERTEX_ATTRIB_HALF` - AttribType::Half.
-		/// - `BGFX_CAPS_INSTANCING` - Vertex instancing.
-		/// - `BGFX_CAPS_RENDERER_MULTITHREADED` - Renderer on separate
-		///      thread.
-		/// - `BGFX_CAPS_FRAGMENT_DEPTH` - Fragment shader can modify depth
-		///      buffer value (gl_FragDepth).
-		/// - `BGFX_CAPS_BLEND_INDEPENDENT` - Multiple render targets can
-		///      have different blend mode set individually.
-		/// - `BGFX_CAPS_COMPUTE` - Renderer has compute shaders.
-		/// - `BGFX_CAPS_FRAGMENT_ORDERING` - Intel's pixel sync.
-		/// - `BGFX_CAPS_SWAP_CHAIN` - Multiple windows.
+		/// @attention See BGFX_CAPS_* flags at https://bkaradzic.github.io/bgfx/bgfx.html#available-caps
 		///
 		uint64_t supported;
 
@@ -589,10 +575,12 @@ namespace bgfx
 	///
 	struct Stats
 	{
-		uint64_t cpuTime;      //!< CPU frame time.
+		uint64_t cpuTimeBegin; //!< CPU frame begin time.
+		uint64_t cpuTimeEnd;   //!< CPU frame end time.
 		uint64_t cpuTimerFreq; //!< CPU timer frequency.
 
-		uint64_t gpuTime;      //!< GPU frame time.
+		uint64_t gpuTimeBegin; //!< GPU frame begin time.
+		uint64_t gpuTimeEnd;   //!< GPU frame end time.
 		uint64_t gpuTimerFreq; //!< GPU timer frequency.
 	};
 
@@ -750,7 +738,7 @@ namespace bgfx
 	///
 	/// @param[in] _vendorId Vendor PCI id. If set to `BGFX_PCI_ID_NONE` it will select the first
 	///   device.
-	///   - `BGFX_PCI_ID_NONE` - autoselect.
+	///   - `BGFX_PCI_ID_NONE` - auto-select.
 	///   - `BGFX_PCI_ID_AMD` - AMD.
 	///   - `BGFX_PCI_ID_INTEL` - Intel.
 	///   - `BGFX_PCI_ID_NVIDIA` - nVidia.
@@ -763,13 +751,13 @@ namespace bgfx
 	///
 	/// @param[in] _reallocator Custom allocator. When custom allocator is not
 	///   specified, library uses default CRT allocator. The library assumes
-	///   icustom allocator is thread safe.
+	///   custom allocator is thread safe.
 	///
-	/// @returns `true` if initialization is sucessful.
+	/// @returns `true` if initialization is successful.
 	///
 	/// @attention C99 equivalent is `bgfx_init`.
 	///
-	bool init(RendererType::Enum _type = RendererType::Count, uint16_t _vendorId = BGFX_PCI_ID_NONE, uint16_t _deviceId = 0, CallbackI* _callback = NULL, bx::ReallocatorI* _reallocator = NULL);
+	bool init(RendererType::Enum _type = RendererType::Count, uint16_t _vendorId = BGFX_PCI_ID_NONE, uint16_t _deviceId = 0, CallbackI* _callback = NULL, bx::AllocatorI* _reallocator = NULL);
 
 	/// Shutdown bgfx library.
 	///
@@ -1496,7 +1484,7 @@ namespace bgfx
 	/// @returns Handle to frame buffer object.
 	///
 	/// @remarks
-	///   Frame buffer cannnot be used for sampling.
+	///   Frame buffer cannot be used for sampling.
 	///
 	/// @attention C99 equivalent is `bgfx_create_frame_buffer_from_nwh`.
 	///
