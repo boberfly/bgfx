@@ -129,8 +129,6 @@ class Cubes : public entry::AppI
         const bgfx::Caps* caps = bgfx::getCaps();
         tesselationSupported = !!(caps->supported & BGFX_CAPS_TESSELLATION);
 
-        tesselationSupported = false;
-
         if (tesselationSupported)
         {
 
@@ -191,8 +189,8 @@ class Cubes : public entry::AppI
 
 			// Use debug font to print information about this example.
 			bgfx::dbgTextClear();
-			bgfx::dbgTextPrintf(0, 1, 0x4f, "bgfx/examples/27-tesselation");
-			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Rendering simple tesselated meshes.");
+			bgfx::dbgTextPrintf(0, 1, 0x4f, "bgfx/examples/27-tessellation");
+			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Rendering simple tessellated meshes with varying tessellation levels.");
 			bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
 
             if (tesselationSupported)

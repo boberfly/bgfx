@@ -153,7 +153,14 @@ bgfx::ProgramHandle loadProgram(bx::FileReaderI* _reader, const char* _vsName, c
         dsh = loadShader(_reader, _dsName);
     }
 
-	return bgfx::createProgram(vsh, fsh, hsh, dsh, true /* destroy shaders when program is destroyed */);
+    BX_CHECK(
+        (NULL == _hsName && NULL == _dsName) ||
+        (NULL != _hsName && NULL != _dsName),
+        "Hull shader without Domain shader specified or vice versa.");
+
+    return  NULL != _hsName
+        ? bgfx::createProgram(vsh, fsh, hsh, dsh, true  /* destroy shaders when program is destroyed */)
+        : bgfx::createProgram(vsh, fsh, true            /* destroy shaders when program is destroyed */);
 }
 
 bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName, const char* _hsName, const char* _dsName)

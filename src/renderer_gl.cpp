@@ -4484,25 +4484,7 @@ namespace bgfx { namespace gl
 		memcpy(_str, _insert, len);
 	}
 
-    // TODO: Put this somewhere else 
-    const char * magic_to_string(uint32_t magic)
-    {
-        switch (magic)
-        {
-        case BGFX_CHUNK_MAGIC_FSH:
-            return "Fragment";
-        case BGFX_CHUNK_MAGIC_VSH:
-            return "Vertex";
-        case BGFX_CHUNK_MAGIC_CSH:
-            return "Compute";
-        case BGFX_CHUNK_MAGIC_HSH:
-            return "Hull";
-        case BGFX_CHUNK_MAGIC_DSH:
-            return "Domain";
-        }
-
-        return "Unknown";
-    }
+    
 
 	void ShaderGL::create(Memory* _mem)
 	{

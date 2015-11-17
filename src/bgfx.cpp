@@ -332,6 +332,25 @@ namespace bgfx
 
 	}
 
+    const char * magic_to_string(uint32_t magic)
+    {
+        switch (magic)
+        {
+        case BGFX_CHUNK_MAGIC_FSH:
+            return "Fragment";
+        case BGFX_CHUNK_MAGIC_VSH:
+            return "Vertex";
+        case BGFX_CHUNK_MAGIC_CSH:
+            return "Compute";
+        case BGFX_CHUNK_MAGIC_HSH:
+            return "Hull";
+        case BGFX_CHUNK_MAGIC_DSH:
+            return "Domain";
+        }
+
+        return "Unknown";
+    }
+
 #include "charset.h"
 
 	void charsetFillTexture(const uint8_t* _charset, uint8_t* _rgba, uint32_t _height, uint32_t _pitch, uint32_t _bpp)

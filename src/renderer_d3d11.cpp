@@ -27,12 +27,14 @@ namespace bgfx { namespace d3d11
 
 	static const PrimInfo s_primInfo[] =
 	{
-		{ D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,  3, 3, 0 },
-		{ D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP, 3, 1, 2 },
-		{ D3D11_PRIMITIVE_TOPOLOGY_LINELIST,      2, 2, 0 },
-		{ D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP,     2, 1, 1 },
-		{ D3D11_PRIMITIVE_TOPOLOGY_POINTLIST,     1, 1, 0 },
-		{ D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED,     0, 0, 0 },
+		{ D3D11_PRIMITIVE_TOPOLOGY_TRIANGLELIST,                3, 3, 0 },
+		{ D3D11_PRIMITIVE_TOPOLOGY_TRIANGLESTRIP,               3, 1, 2 },
+		{ D3D11_PRIMITIVE_TOPOLOGY_LINELIST,                    2, 2, 0 },
+		{ D3D11_PRIMITIVE_TOPOLOGY_LINESTRIP,                   2, 1, 1 },
+		{ D3D11_PRIMITIVE_TOPOLOGY_POINTLIST,                   1, 1, 0 },        
+        { D3D11_PRIMITIVE_TOPOLOGY_3_CONTROL_POINT_PATCHLIST,   3, 3, 0 },
+        { D3D11_PRIMITIVE_TOPOLOGY_4_CONTROL_POINT_PATCHLIST,   4, 4, 0 },
+		{ D3D11_PRIMITIVE_TOPOLOGY_UNDEFINED,                   0, 0, 0 },
 	};
 
 	static const char* s_primName[] =
@@ -42,6 +44,8 @@ namespace bgfx { namespace d3d11
 		"Line",
 		"LineStrip",
 		"Point",
+        "TriPatch",
+        "QuadPatch",
 	};
 	BX_STATIC_ASSERT(BX_COUNTOF(s_primInfo) == BX_COUNTOF(s_primName)+1);
 
@@ -574,6 +578,8 @@ namespace bgfx { namespace d3d11
 			, m_currentProgram(NULL)
 			, m_vsChanges(0)
 			, m_fsChanges(0)
+            , m_hsChanges(0)
+            , m_dsChanges(0)
 			, m_rtMsaa(false)
 			, m_ovrRtv(NULL)
 			, m_ovrDsv(NULL)
@@ -1655,7 +1661,11 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh) BX_OVERRIDE
 		{
-			m_program[_handle.idx].create(&m_shaders[_vsh.idx], isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL);
+			m_program[_handle.idx].create(
+                &m_shaders[_vsh.idx], 
+                isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL,
+                isValid(_hsh) ? &m_shaders[_hsh.idx] : NULL,
+                isValid(_dsh) ? &m_shaders[_dsh.idx] : NULL);
 		}
 
 		void destroyProgram(ProgramHandle _handle) BX_OVERRIDE
@@ -1923,6 +1933,10 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			deviceCtx->VSSetConstantBuffers(0, 1, &program.m_vsh->m_buffer);
 			deviceCtx->PSSetShader(program.m_fsh->m_pixelShader, NULL, 0);
 			deviceCtx->PSSetConstantBuffers(0, 1, &program.m_fsh->m_buffer);
+
+            deviceCtx->HSSetShader(NULL, NULL, 0);
+            deviceCtx->DSSetShader(NULL, NULL, 0);
+
 
 			VertexBufferD3D11& vb = m_vertexBuffers[_blitter.m_vb->handle.idx];
 			VertexDecl& vertexDecl = m_vertexDecls[_blitter.m_vb->decl.idx];
@@ -2277,7 +2291,17 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			{
 				memcpy(&m_fsScratch[_regIndex], _val, _numRegs*16);
 				m_fsChanges += _numRegs;
-			}
+            }
+            else if (_flags&BGFX_UNIFORM_HULLBIT)
+            {
+                memcpy(&m_hsScratch[_regIndex], _val, _numRegs * 16);
+                m_hsChanges += _numRegs;
+            }
+            else if (_flags&BGFX_UNIFORM_DOMAINBIT)
+            {
+                memcpy(&m_dsScratch[_regIndex], _val, _numRegs * 16);
+                m_dsChanges += _numRegs;
+            }
 			else
 			{
 				memcpy(&m_vsScratch[_regIndex], _val, _numRegs*16);
@@ -2316,6 +2340,26 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 				m_fsChanges = 0;
 			}
+
+            if (0 < m_hsChanges)
+            {
+                if (NULL != m_currentProgram->m_hsh->m_buffer)
+                {
+                    m_deviceCtx->UpdateSubresource(m_currentProgram->m_hsh->m_buffer, 0, 0, m_hsScratch, 0, 0);
+                }
+
+                m_hsChanges = 0;
+            }
+
+            if (0 < m_dsChanges)
+            {
+                if (NULL != m_currentProgram->m_dsh->m_buffer)
+                {
+                    m_deviceCtx->UpdateSubresource(m_currentProgram->m_dsh->m_buffer, 0, 0, m_dsScratch, 0, 0);
+                }
+
+                m_dsChanges = 0;
+            }
 		}
 
 		void setFrameBuffer(FrameBufferHandle _fbh, bool _msaa = true)
@@ -3091,16 +3135,20 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 #define CASE_IMPLEMENT_UNIFORM(_uniform, _dxsuffix, _type) \
 		case UniformType::_uniform: \
-		case UniformType::_uniform|BGFX_UNIFORM_FRAGMENTBIT: \
+        case UniformType::_uniform|BGFX_UNIFORM_FRAGMENTBIT: \
+        case UniformType::_uniform|BGFX_UNIFORM_HULLBIT: \
+        case UniformType::_uniform|BGFX_UNIFORM_DOMAINBIT: \
 				{ \
 					setShaderUniform(uint8_t(type), loc, data, num); \
 				} \
 				break;
 
-				switch ( (uint32_t)type)
-				{
-				case UniformType::Mat3:
-				case UniformType::Mat3|BGFX_UNIFORM_FRAGMENTBIT: \
+                switch ((uint32_t)type)
+                {
+                case UniformType::Mat3:
+                case UniformType::Mat3 | BGFX_UNIFORM_FRAGMENTBIT:
+                case UniformType::Mat3 | BGFX_UNIFORM_HULLBIT: 
+                case UniformType::Mat3 | BGFX_UNIFORM_DOMAINBIT: 
 					 {
 						 float* value = (float*)data;
 						 for (uint32_t ii = 0, count = num/3; ii < count; ++ii,  loc += 3*16, value += 9)
@@ -3232,6 +3280,9 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					deviceCtx->PSSetShader(NULL, NULL, 0);
 				}
 
+                deviceCtx->HSSetShader(NULL, NULL, 0);
+                deviceCtx->DSSetShader(NULL, NULL, 0);
+
 				VertexBufferD3D11& vb = m_vertexBuffers[_clearQuad.m_vb->handle.idx];
 				const VertexDecl& vertexDecl = m_vertexDecls[_clearQuad.m_vb->decl.idx];
 				const uint32_t stride = vertexDecl.m_stride;
@@ -3355,8 +3406,12 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 		uint8_t m_vsScratch[64<<10];
 		uint8_t m_fsScratch[64<<10];
+        uint8_t m_hsScratch[64 << 10];
+        uint8_t m_dsScratch[64 << 10];
 		uint32_t m_vsChanges;
 		uint32_t m_fsChanges;
+        uint32_t m_hsChanges;
+        uint32_t m_dsChanges;
 
 		FrameBufferHandle m_fbh;
 		bool m_rtMsaa;
@@ -3696,14 +3751,14 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		case BGFX_CHUNK_MAGIC_CSH:
 		case BGFX_CHUNK_MAGIC_FSH:
 		case BGFX_CHUNK_MAGIC_VSH:
+        case BGFX_CHUNK_MAGIC_HSH:
+        case BGFX_CHUNK_MAGIC_DSH:
 			break;
 
 		default:
 			BGFX_FATAL(false, Fatal::InvalidShader, "Unknown shader format %x.", magic);
 			break;
 		}
-
-		bool fragment = BGFX_CHUNK_MAGIC_FSH == magic;
 
 		uint32_t iohash;
 		bx::read(&reader, iohash);
@@ -3715,11 +3770,18 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 		m_numUniforms = count;
 
 		BX_TRACE("%s Shader consts %d"
-			, BGFX_CHUNK_MAGIC_FSH == magic ? "Fragment" : BGFX_CHUNK_MAGIC_VSH == magic ? "Vertex" : "Compute"
+			, magic_to_string(magic)
 			, count
 			);
 
-		uint8_t fragmentBit = fragment ? BGFX_UNIFORM_FRAGMENTBIT : 0;
+		uint8_t fragmentBit = 
+            (magic == BGFX_CHUNK_MAGIC_FSH  
+                ? BGFX_UNIFORM_FRAGMENTBIT 
+                : magic == BGFX_CHUNK_MAGIC_HSH
+                    ? BGFX_UNIFORM_HULLBIT
+                    : magic == BGFX_CHUNK_MAGIC_DSH
+                        ? BGFX_UNIFORM_DOMAINBIT
+                        : 0);
 
 		if (0 < count)
 		{
@@ -3768,7 +3830,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 						}
 
 						kind = "user";
-						m_constantBuffer->writeUniformHandle( (UniformType::Enum)(type|fragmentBit), regIndex, info->m_handle, regCount);
+						m_constantBuffer->writeUniformHandle( (UniformType::Enum)( (type&~BGFX_UNIFORM_MASK) | fragmentBit), regIndex, info->m_handle, regCount);
 					}
 				}
 				else
@@ -3813,11 +3875,21 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 			DX_CHECK(s_renderD3D11->m_device->CreateVertexShader(code, shaderSize, NULL, &m_vertexShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create vertex shader.");
 		}
-		else
+		else if(BGFX_CHUNK_MAGIC_CSH == magic)
 		{
 			DX_CHECK(s_renderD3D11->m_device->CreateComputeShader(code, shaderSize, NULL, &m_computeShader) );
 			BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create compute shader.");
 		}
+        else if (BGFX_CHUNK_MAGIC_HSH == magic)
+        {
+            DX_CHECK(s_renderD3D11->m_device->CreateHullShader(code, shaderSize, NULL, &m_hullShader));
+            BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create hull shader.");
+        }
+        else 
+        {
+            DX_CHECK(s_renderD3D11->m_device->CreateDomainShader(code, shaderSize, NULL, &m_domainShader));
+            BGFX_FATAL(NULL != m_ptr, bgfx::Fatal::InvalidShader, "Failed to create hull shader.");
+        }
 
 		uint8_t numAttrs;
 		bx::read(&reader, numAttrs);
@@ -5143,6 +5215,7 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 					 | BGFX_STATE_PT_MASK
 					 | BGFX_STATE_POINT_SIZE_MASK
 					 | BGFX_STATE_MSAA
+                     | BGFX_STATE_PT_MASK
 					 ) & changedFlags)
 				{
 					if ( (BGFX_STATE_CULL_MASK|BGFX_STATE_MSAA) & changedFlags)
@@ -5179,6 +5252,8 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 
 						deviceCtx->VSSetShader(NULL, NULL, 0);
 						deviceCtx->PSSetShader(NULL, NULL, 0);
+                        deviceCtx->HSSetShader(NULL, NULL, 0);
+                        deviceCtx->DSSetShader(NULL, NULL, 0);
 					}
 					else
 					{
@@ -5200,6 +5275,30 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 						{
 							deviceCtx->PSSetShader(NULL, NULL, 0);
 						}
+
+                        const ShaderD3D11* hsh = program.m_hsh;
+                        if (NULL != hsh)
+                        {
+                            deviceCtx->HSSetShader(hsh->m_hullShader, NULL, 0);
+                            deviceCtx->HSSetConstantBuffers(0, 1, &hsh->m_buffer);
+                        }
+                        else
+                        {
+                            deviceCtx->HSSetShader(NULL, NULL, 0);
+                        }
+
+
+                        const ShaderD3D11* dsh = program.m_dsh;
+                        if (NULL != dsh)
+                        {
+                            deviceCtx->DSSetShader(dsh->m_domainShader, NULL, 0);
+                            deviceCtx->DSSetConstantBuffers(0, 1, &dsh->m_buffer);
+                        }
+                        else
+                        {
+                            deviceCtx->DSSetShader(NULL, NULL, 0);
+                        }
+
 					}
 
 					programChanged =
@@ -5223,6 +5322,18 @@ BX_PRAGMA_DIAGNOSTIC_POP();
 						{
 							commit(*fcb);
 						}
+
+                        UniformBuffer* hcb = program.m_hsh ? program.m_hsh->m_constantBuffer : NULL;
+                        if (NULL != hcb)
+                        {
+                            commit(*hcb);
+                        }
+
+                        UniformBuffer* dcb = program.m_dsh ? program.m_dsh->m_constantBuffer : NULL;
+                        if (NULL != dcb)
+                        {
+                            commit(*dcb);
+                        }
 					}
 
 					viewState.setPredefined<4>(this, view, eye, program, _render, draw);
