@@ -1253,6 +1253,9 @@ namespace bgfx { namespace d3d12
 
 		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh) BX_OVERRIDE
 		{
+            // TODO @ LSBOSS: Implement tesselation for DX12
+            BX_UNUSED(_hsh);
+            BX_UNUSED(_dsh);
 			m_program[_handle.idx].create(&m_shaders[_vsh.idx], isValid(_fsh) ? &m_shaders[_fsh.idx] : NULL);
 		}
 

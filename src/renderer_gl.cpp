@@ -4936,7 +4936,7 @@ namespace bgfx { namespace gl
                 char* temp = (char*)alloca(tempLen);
                 bx::StaticMemoryBlockWriter writer(temp, tempLen);
 
-                // TODO: Make this configurable and/or put this into shaderc
+                // TODO @ LSBOSS: Make this configurable and/or put this into shaderc
                 writeString(&writer, "#version 430\n");
 
                 bx::write(&writer, code, codeLen);

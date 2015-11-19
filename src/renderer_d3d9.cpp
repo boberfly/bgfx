@@ -928,6 +928,8 @@ namespace bgfx { namespace d3d9
 
 		void createProgram(ProgramHandle _handle, ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh) BX_OVERRIDE
 		{
+            BX_UNUSED(_hsh);
+            BX_UNUSED(_dsh);
 			m_program[_handle.idx].create(m_shaders[_vsh.idx], m_shaders[_fsh.idx]);
 		}
 

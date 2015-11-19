@@ -2872,7 +2872,7 @@ namespace bgfx
                 return invalid;
             }
 
-            // TODO: Fix hashing
+            // TODO @ LSBOSS: Fix hashing
             ProgramHashMap::const_iterator it = m_programHashMap.find(uint32_t(_fsh.idx << 16) | _vsh.idx);
             if (it != m_programHashMap.end())
             {
@@ -2882,8 +2882,9 @@ namespace bgfx
                 return handle;
             }
 
-            const ShaderRef& vsr = m_shaderRef[_vsh.idx];
-            const ShaderRef& fsr = m_shaderRef[_fsh.idx];            
+            // TODO @ LSBOSS: Fix iohashing            
+            //const ShaderRef& vsr = m_shaderRef[_vsh.idx];
+            //const ShaderRef& fsr = m_shaderRef[_fsh.idx];            
             /*if (vsr.m_hash != fsr.m_hash)
             {
                 BX_WARN(vsr.m_hash == fsr.m_hash, "Vertex shader output doesn't match fragment shader input.");
@@ -2891,9 +2892,9 @@ namespace bgfx
                 return invalid;
             }*/
 
-            // TODO: Check input/output from hull/domain shader against vertex/fragment shader as well
-            const ShaderRef& dsr = m_shaderRef[_dsh.idx];
-            const ShaderRef& hsr = m_shaderRef[_hsh.idx];
+            // TODO @ LSBOSS: Check input/output from hull/domain shader against vertex/fragment shader as well
+            //const ShaderRef& dsr = m_shaderRef[_dsh.idx];
+            //const ShaderRef& hsr = m_shaderRef[_hsh.idx];
 
             ProgramHandle handle;
             handle.idx = m_programHandle.alloc();
@@ -2957,12 +2958,12 @@ namespace bgfx
 
 			const ShaderRef& vsr = m_shaderRef[_vsh.idx];
 			const ShaderRef& fsr = m_shaderRef[_fsh.idx];
-			/*if (vsr.m_hash != fsr.m_hash)
+			if (vsr.m_hash != fsr.m_hash)
 			{
 				BX_WARN(vsr.m_hash == fsr.m_hash, "Vertex shader output doesn't match fragment shader input.");
 				ProgramHandle invalid = BGFX_INVALID_HANDLE;
 				return invalid;
-			}*/
+			}
 
 			ProgramHandle handle;
  			handle.idx = m_programHandle.alloc();
