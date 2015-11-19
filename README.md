@@ -1,3 +1,43 @@
+[lsboss-bgfx](https://github.com/lsboss/bgfx) - bgfx with tessellation & CMake support
+==================================================================================================================
+
+This is a fork of Branimir Karadžić's [bgfx cross-plattform rendering library](https://github.com/bkaradzic/bgfx) 
+with a couple of changes done by me: 
+
+* Support for Tessellation via hull/domain (i.e. tessellation control/evaluation) shaders
+  * Check examples/27-tessellation
+* CMake support for better integration into existing pipelines 
+* Shader compiling during build time for easier shader development 
+
+Tessellation works on
+* Direct3D 11
+* OpenGL
+
+CMake tested on 
+* Windows 
+* Linux
+
+Compiler tested  
+* MSVC 
+* Clang
+
+Several changes still have to be done by me before I issue a pull request:
+
+* Consistent naming between HLSL and GLSL flavor (hull/domain vs. tessellation control/evaluation)
+* Compare hashings between shader pipelines to check for correct input / output signature match
+* Check for compilation on all supported platforms 
+* Support Tessellation with Direct3D 12 
+* Support Tessellation with Metal
+* Support Tessellation with OpenGL ES when EXT_tessellation_shader is supported 
+
+
+
+
+
+Original README from bgfx
+-------------------------
+
+
 [bgfx](https://github.com/bkaradzic/bgfx) - Cross-platform rendering library
 ============================================================================
 
