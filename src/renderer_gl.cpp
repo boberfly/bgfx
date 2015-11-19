@@ -490,7 +490,7 @@ namespace bgfx { namespace gl
 			ARB_shader_image_load_store,
 			ARB_shader_storage_buffer_object,
 			ARB_shader_texture_lod,
-            ARB_tessellation_shader,
+			ARB_tessellation_shader,
 			ARB_texture_compression_bptc,
 			ARB_texture_compression_rgtc,
 			ARB_texture_float,
@@ -539,6 +539,7 @@ namespace bgfx { namespace gl
 			EXT_shader_image_load_store,
 			EXT_shader_texture_lod,
 			EXT_shadow_samplers,
+			EXT_tessellation_shader,
 			EXT_texture_array,
 			EXT_texture_compression_dxt1,
 			EXT_texture_compression_latc,
@@ -744,6 +745,7 @@ namespace bgfx { namespace gl
 		{ "EXT_shader_image_load_store",           false,                             true  },
 		{ "EXT_shader_texture_lod",                false,                             true  }, // GLES2 extension.
 		{ "EXT_shadow_samplers",                   false,                             true  },
+		{ "EXT_tessellation_shader",		   false,			      true  }, 
 		{ "EXT_texture_array",                     BGFX_CONFIG_RENDERER_OPENGL >= 30, true  },
 		{ "EXT_texture_compression_dxt1",          false,                             true  },
 		{ "EXT_texture_compression_latc",          false,                             true  },
@@ -1614,9 +1616,10 @@ namespace bgfx { namespace gl
 				|| s_extension[Extension::ARB_compute_shader].m_supported
 				;
 
-            const bool tesselationSupport = false                
-                || s_extension[Extension::ARB_tessellation_shader].m_supported
-                ;
+			const bool tesselationSupport = false                
+				|| s_extension[Extension::ARB_tessellation_shader].m_supported
+				|| s_extension[Extension::EXT_tessellation_shader].m_supported
+				;
             
 
 			for (uint32_t ii = 0; ii < TextureFormat::Count; ++ii)
@@ -2919,8 +2922,9 @@ namespace bgfx { namespace gl
 					BX_FREE(g_allocator, data);
 				}
 
+// TODO @ LSBOSS: Check for correct OpenGL Version prior of using GL_PROGRAM_BINARY_RETRIEVABLE_HINT
 #if BGFX_CONFIG_RENDERER_OPENGL
-				GL_CHECK(glProgramParameteri(programId, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE) );
+//				GL_CHECK(glProgramParameteri(programId, GL_PROGRAM_BINARY_RETRIEVABLE_HINT, GL_TRUE) );
 #endif // BGFX_CONFIG_RENDERER_OPENGL
 			}
 
@@ -4946,9 +4950,9 @@ namespace bgfx { namespace gl
 
             
 
-            BX_TRACE("*********************** %s ***********************\n%s\n**************************************************\n\n", 
+            /*BX_TRACE("*********************** %s ***********************\n%s\n**************************************************\n\n", 
                 magic_to_string(magic),
-                code);
+                code);*/
 
 			GL_CHECK(glShaderSource(m_id, 1, (const GLchar**)&code, NULL) );
 			GL_CHECK(glCompileShader(m_id) );
