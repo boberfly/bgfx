@@ -44,10 +44,10 @@ endif()
 
 
 # TODO: Make platform dependent
-if(CMAKE_COMPILER_MSVC)
+if(${CMAKE_COMPILER_MSVC})
 	add_definitions(-D_CRT_SECURE_NO_WARNINGS)
 	add_definitions(-D_CRT_SECURE_NO_DEPRECATE)
-elseif(CMAKE_COMPILER_CLANG)
+elseif(${CMAKE_COMPILER_CLANG})
 	set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -std=c++0x")
 endif()
 
@@ -58,9 +58,9 @@ add_definitions(-D__STDC_CONSTANT_MACROS)
 
 set_property(GLOBAL PROPERTY USE_FOLDERS ON) 
 
-if(CMAKE_HOST_WINDOWS)
+if(${CMAKE_HOST_WINDOWS})
 	include_directories(${CMAKE_SOURCE_DIR}/../bx/include/compat/msvc)
-elseif(CMAKE_HOST_OSX)
+elseif(${CMAKE_HOST_OSX})
 	include_directories(${CMAKE_SOURCE_DIR}/../bx/include/compat/osx)
 endif()
 
@@ -83,7 +83,7 @@ add_library (
    ${SOURCES}
 )
 
-if(CMAKE_HOST_LINUX)
+if(${CMAKE_HOST_LINUX})
 	find_package(OpenGL)	
 	
 	target_link_libraries(
@@ -104,6 +104,13 @@ target_include_directories(
 	bgfx
 	PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/dxsdk/include
 )
+
+#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    target_compile_definitions(bgfx PRIVATE "BGFX_CONFIG_DEBUG=1")
+#endif()
+
+# TODO: Is this needed? 
+#target_compile_definitions(bgfx PRIVATE "BX_CONFIG_ENABLE_MSVC_LEVEL4_WARNINGS")
 
 add_subdirectory(examples)
 add_subdirectory(tools)
