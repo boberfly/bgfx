@@ -1,6 +1,10 @@
 ###### EXAMPLES ######
 cmake_minimum_required(VERSION 3.1)
 
+message("WINDOWS = ${CMAKE_HOST_WINDOWS}")
+message("OSX = ${CMAKE_HOST_OSX}")
+message("LINUX = ${CMAKE_HOST_LINUX}")
+
 # Add source files for common example project 
 file(GLOB_RECURSE SOURCES common/*.cpp common/*.h ../3rdparty/ib-compress/*.cpp ../3rdparty/ib-compress/*.h ../3rdparty/ocornut-imgui/*.cpp ../3rdparty/ocornut-imgui/*.h)
 add_library (
@@ -9,7 +13,8 @@ add_library (
 )
 set_target_properties(example-common PROPERTIES FOLDER "Examples")
 
-if(CMAKE_HOST_WINDOWS)
+if(${CMAKE_HOST_WINDOWS})
+	message("Compiling shaders for dx11")
 	
 	set(SHADERC_PLATFORM windows)
 	set(SHADERC_VERTEX_PROFILE vs_4_0)
@@ -27,14 +32,27 @@ if(CMAKE_HOST_WINDOWS)
 	#set(SHADERC_DOMAIN_PROFILE 430)
 	#set(SHADER_PATH shaders/glsl)
 	
-	
-	
-	
-else(CMAKE_HOST_OSX || CMAKE_HOST_LINUX)
+elseif(${CMAKE_HOST_OSX})
+	message("Compiling shaders for metal")
+
 	set(SHADERC_PLATFORM osx)
+	set(SHADERC_VERTEX_PROFILE metal)
+	set(SHADERC_FRAGMENT_PROFILE metal)
+	set(SHADERC_COMPUTE_PROFILE metal)
+	set(SHADERC_HULL_PROFILE metal)
+	set(SHADERC_DOMAIN_PROFILE metal)
+	set(SHADER_PATH shaders/metal)
+
+else(${CMAKE_HOST_LINUX})
+	message("Compiling shaders for glsl")
+
+	set(SHADERC_PLATFORM linux)
 	set(SHADERC_VERTEX_PROFILE 140)
 	set(SHADERC_FRAGMENT_PROFILE 140)
 	set(SHADERC_COMPUTE_PROFILE 430)
+	set(SHADERC_HULL_PROFILE 430)
+	set(SHADERC_DOMAIN_PROFILE 430)
+
 	set(SHADER_PATH shaders/glsl)
 endif()
 
