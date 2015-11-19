@@ -1614,8 +1614,7 @@ namespace bgfx { namespace gl
 				|| s_extension[Extension::ARB_compute_shader].m_supported
 				;
 
-            const bool tesselationSupport = false
-                || !!(BGFX_CONFIG_RENDERER_OPENGLES >= 40)
+            const bool tesselationSupport = false                
                 || s_extension[Extension::ARB_tessellation_shader].m_supported
                 ;
             
@@ -4938,6 +4937,7 @@ namespace bgfx { namespace gl
 
                 // TODO @ LSBOSS: Make this configurable and/or put this into shaderc
                 writeString(&writer, "#version 430\n");
+                writeString(&writer, "#extension GL_EXT_tessellation_shader : required\n");
 
                 bx::write(&writer, code, codeLen);
                 bx::write(&writer, '\0');
