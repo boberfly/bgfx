@@ -3,6 +3,8 @@
  * License: http://www.opensource.org/licenses/BSD-2-Clause
  */
 
+#include <stdio.h>
+
 #include "common.h"
 #include "bgfx_utils.h"
 
@@ -112,7 +114,7 @@ class Cubes : public entry::AppI
 		m_debug  = BGFX_DEBUG_TEXT;
 		m_reset  = BGFX_RESET_VSYNC;
 
-		bgfx::init(bgfx::RendererType::Direct3D11, args.m_pciId);
+		bgfx::init(args.m_type, args.m_pciId);
 		bgfx::reset(m_width, m_height, m_reset);
 
 		// Enable debug text.
@@ -128,6 +130,8 @@ class Cubes : public entry::AppI
 
         const bgfx::Caps* caps = bgfx::getCaps();
         tesselationSupported = !!(caps->supported & BGFX_CAPS_TESSELLATION);
+
+	printf("tesselation = %i\n", tesselationSupported);
 
         if (tesselationSupported)
         {
@@ -262,7 +266,8 @@ class Cubes : public entry::AppI
                     }
                 }
             }
-            else {
+            else 
+            {
                 bool blink = uint32_t(time*3.0f) & 1;
                 bgfx::dbgTextPrintf(0, 5, blink ? 0x1f : 0x01, " Tesselation is not supported by GPU. ");
             }
