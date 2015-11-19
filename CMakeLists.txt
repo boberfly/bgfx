@@ -105,5 +105,12 @@ target_include_directories(
 	PRIVATE ${CMAKE_SOURCE_DIR}/3rdparty/dxsdk/include
 )
 
+#if ("${CMAKE_BUILD_TYPE}" STREQUAL "Debug")
+    target_compile_definitions(bgfx PRIVATE "BGFX_CONFIG_DEBUG=1")
+#endif()
+
+# TODO: Is this needed? 
+#target_compile_definitions(bgfx PRIVATE "BX_CONFIG_ENABLE_MSVC_LEVEL4_WARNINGS")
+
 add_subdirectory(examples)
 add_subdirectory(tools)
