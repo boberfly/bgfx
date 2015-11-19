@@ -254,7 +254,7 @@ class Cubes : public entry::AppI
                         // Set render states.
                         bgfx::setState(BGFX_STATE_DEFAULT | BGFX_STATE_PT_PATCH3);
 
-                        float tesselation[4] = { xx + 1,yy + 1,1,1 };
+                        float tesselation[4] = { xx + 1.0f, yy + 1.0f, 1.0f, 1.0f };
                         bgfx::setUniform(u_TessLevel, tesselation);
 
                         // Submit primitive for rendering to view 0.

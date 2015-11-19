@@ -395,6 +395,7 @@ exampleProject("22-windows")
 exampleProject("23-vectordisplay")
 exampleProject("24-nbody")
 exampleProject("26-occlusion")
+exampleProject("27-tessellation")
 
 -- C99 source doesn't compile under WinRT settings
 if not premake.vstudio.iswinrt() then
