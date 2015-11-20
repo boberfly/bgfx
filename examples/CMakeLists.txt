@@ -6,7 +6,7 @@ message("OSX = ${CMAKE_HOST_OSX}")
 message("LINUX = ${CMAKE_HOST_LINUX}")
 
 # Add source files for common example project 
-file(GLOB_RECURSE SOURCES common/*.cpp common/*.h ../3rdparty/ib-compress/*.cpp ../3rdparty/ib-compress/*.h ../3rdparty/ocornut-imgui/*.cpp ../3rdparty/ocornut-imgui/*.h)
+file(GLOB_RECURSE SOURCES common/*.cpp common/*.h common/*.mm ../3rdparty/ib-compress/*.cpp ../3rdparty/ib-compress/*.h ../3rdparty/ocornut-imgui/*.cpp ../3rdparty/ocornut-imgui/*.h)
 add_library (
    example-common  
    ${SOURCES}
@@ -33,15 +33,15 @@ if(${CMAKE_HOST_WINDOWS})
 	#set(SHADER_PATH shaders/glsl)
 	
 elseif(${CMAKE_HOST_OSX})
-	message("Compiling shaders for metal")
+	message("Compiling shaders for glsl")
 
-	set(SHADERC_PLATFORM osx)
-	set(SHADERC_VERTEX_PROFILE metal)
-	set(SHADERC_FRAGMENT_PROFILE metal)
-	set(SHADERC_COMPUTE_PROFILE metal)
-	set(SHADERC_HULL_PROFILE metal)
-	set(SHADERC_DOMAIN_PROFILE metal)
-	set(SHADER_PATH shaders/metal)
+	set(SHADERC_PLATFORM linux)
+	set(SHADERC_VERTEX_PROFILE 120)
+	set(SHADERC_FRAGMENT_PROFILE 120)
+	set(SHADERC_COMPUTE_PROFILE 430)
+	set(SHADERC_HULL_PROFILE 430)
+	set(SHADERC_DOMAIN_PROFILE 430)
+	set(SHADER_PATH shaders/glsl)
 
 else(${CMAKE_HOST_LINUX})
 	message("Compiling shaders for glsl")

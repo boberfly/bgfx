@@ -73,7 +73,7 @@ include_directories(
 )
 
 # Engine sources 
-file(GLOB_RECURSE SOURCES src/*.cpp src/*.h include/*.h)
+file(GLOB_RECURSE SOURCES src/*.cpp src/*.h src/*.mm include/*.h)
 file(GLOB to_remove src/amalgamated.*)
 list(REMOVE_ITEM SOURCES ${to_remove})
 
@@ -97,6 +97,23 @@ if(${CMAKE_HOST_LINUX})
 		bgfx
 		PRIVATE ${OPENGL_INCLUDE_DIR}
 		
+	)
+endif()
+
+if(${CMAKE_HOST_OSX})
+
+        find_package(OpenGL)
+	find_library(COCOA_LIBRARY Cocoa)
+	
+
+        target_include_directories(
+                bgfx
+                PRIVATE ${OPENGL_INCLUDE_DIR}
+        )
+
+	target_link_libraries(
+		bgfx
+		PRIVATE ${COCOA_LIBRARY} ${OPENGL_LIBRARIES} 
 	)
 endif()
 

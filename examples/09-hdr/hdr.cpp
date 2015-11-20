@@ -151,7 +151,7 @@ class HDR : public entry::AppI
 		m_reset  = BGFX_RESET_VSYNC;
 
 		bgfx::init(args.m_type, args.m_pciId);
-		bgfx::reset(m_width, m_height, m_reset);
+      	bgfx::reset(m_width, m_height, m_reset);
 
 		// Enable m_debug text.
 		bgfx::setDebug(m_debug);
