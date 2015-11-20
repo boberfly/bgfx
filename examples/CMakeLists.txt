@@ -15,7 +15,6 @@ set_target_properties(example-common PROPERTIES FOLDER "Examples")
 
 if(${CMAKE_HOST_WINDOWS})
 	message("Compiling shaders for dx11")
-	
 	set(SHADERC_PLATFORM windows)
 	set(SHADERC_VERTEX_PROFILE vs_4_0)
 	set(SHADERC_FRAGMENT_PROFILE ps_4_0)
@@ -24,9 +23,10 @@ if(${CMAKE_HOST_WINDOWS})
 	set(SHADERC_DOMAIN_PROFILE ds_5_0)
 	set(SHADER_PATH shaders/dx11)
 	
+	#message("Compiling shaders for glsl")
 	#set(SHADERC_PLATFORM linux)
-	#set(SHADERC_VERTEX_PROFILE 140)
-	#set(SHADERC_FRAGMENT_PROFILE 140)
+	#set(SHADERC_VERTEX_PROFILE 120)
+	#set(SHADERC_FRAGMENT_PROFILE 120)
 	#set(SHADERC_COMPUTE_PROFILE 430)
 	#set(SHADERC_HULL_PROFILE 430)
 	#set(SHADERC_DOMAIN_PROFILE 430)
@@ -47,8 +47,8 @@ else(${CMAKE_HOST_LINUX})
 	message("Compiling shaders for glsl")
 
 	set(SHADERC_PLATFORM linux)
-	set(SHADERC_VERTEX_PROFILE 140)
-	set(SHADERC_FRAGMENT_PROFILE 140)
+	set(SHADERC_VERTEX_PROFILE 120)
+	set(SHADERC_FRAGMENT_PROFILE 120)
 	set(SHADERC_COMPUTE_PROFILE 430)
 	set(SHADERC_HULL_PROFILE 430)
 	set(SHADERC_DOMAIN_PROFILE 430)
@@ -73,6 +73,7 @@ macro(execute_shader_compiler target shaderFile profile type platform)
 				--platform ${platform} 
 				-O 3
 			MAIN_DEPENDENCY ${shaderFile}
+			DEPENDS shaderc 
 			COMMENT "Building shader ${SHADER_FILE_NAME}.sc"
 		)
 endmacro()

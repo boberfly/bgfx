@@ -4939,20 +4939,21 @@ namespace bgfx { namespace gl
                 char* temp = (char*)alloca(tempLen);
                 bx::StaticMemoryBlockWriter writer(temp, tempLen);
 
-                // TODO @ LSBOSS: Make this configurable and/or put this into shaderc
-                writeString(&writer, "#version 430\n");
-                writeString(&writer, "#extension GL_EXT_tessellation_shader : required\n");
+                // TODO @ LSBOSS: Make this configurable and/or put this into shaderc                
+                if (BX_ENABLED(BGFX_CONFIG_RENDERER_OPENGLES) && s_extension[Extension::EXT_tessellation_shader].m_supported)
+                {
+                    writeString(&writer, "#version 310 es\n");
+                    writeString(&writer, "#extension GL_EXT_tessellation_shader : required\n");
+                }
+                else
+                {
+                    writeString(&writer, "#version 430\n");                    
+                }
 
                 bx::write(&writer, code, codeLen);
                 bx::write(&writer, '\0');
                 code = temp;
             }
-
-            
-
-            /*BX_TRACE("*********************** %s ***********************\n%s\n**************************************************\n\n", 
-                magic_to_string(magic),
-                code);*/
 
 			GL_CHECK(glShaderSource(m_id, 1, (const GLchar**)&code, NULL) );
 			GL_CHECK(glCompileShader(m_id) );
