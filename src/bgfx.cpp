@@ -7,14 +7,14 @@
 #if BX_PLATFORM_WINDOWS
 // BK - Remotery needs WinSock, but on VS2015/Win10 build
 //      fails if WinSock2 is included after Windows.h?!
-#	include <WinSock2.h>
+#	include <winsock2.h>
 #endif // BX_PLATFORM_WINDOWS
 
 #include "bgfx_p.h"
 
 #if BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
 #	define RMT_USE_D3D11 BGFX_CONFIG_RENDERER_DIRECT3D11
-#	define RMT_USE_OPENGL 0
+#	define RMT_USE_OPENGL BGFX_CONFIG_RENDERER_OPENGL
 #	include <remotery/lib/Remotery.c>
 #endif // BGFX_CONFIG_PROFILER_REMOTERY_BUILD_LIB
 
@@ -2655,7 +2655,11 @@ again:
 		BGFX_CHECK_MAIN_THREAD();
 		BX_CHECK(NULL != _tib, "_tib can't be NULL");
 		BX_CHECK(0 < _num, "Requesting 0 indices.");
-		return s_ctx->allocTransientIndexBuffer(_tib, _num);
+		s_ctx->allocTransientIndexBuffer(_tib, _num);
+		BX_CHECK(_num == _tib->size/2, "Failed to allocate transient index buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+			, _num
+			, _tib->size/2
+			);
 	}
 
 	void allocTransientVertexBuffer(TransientVertexBuffer* _tvb, uint32_t _num, const VertexDecl& _decl)
@@ -2665,7 +2669,11 @@ again:
 		BX_CHECK(0 < _num, "Requesting 0 vertices.");
 		BX_CHECK(UINT16_MAX >= _num, "Requesting %d vertices (max: %d).", _num, UINT16_MAX);
 		BX_CHECK(0 != _decl.m_stride, "Invalid VertexDecl.");
-		return s_ctx->allocTransientVertexBuffer(_tvb, _num, _decl);
+		s_ctx->allocTransientVertexBuffer(_tvb, _num, _decl);
+		BX_CHECK(_num == _tvb->size / _decl.m_stride, "Failed to allocate transient vertex buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+			, _num
+			, _tvb->size / _decl.m_stride
+			);
 	}
 
 	bool allocTransientBuffers(bgfx::TransientVertexBuffer* _tvb, const bgfx::VertexDecl& _decl, uint32_t _numVertices, bgfx::TransientIndexBuffer* _tib, uint32_t _numIndices)
@@ -2685,7 +2693,12 @@ again:
 		BGFX_CHECK_MAIN_THREAD();
 		BGFX_CHECK_CAPS(BGFX_CAPS_INSTANCING, "Instancing is not supported!");
 		BX_CHECK(0 < _num, "Requesting 0 instanced data vertices.");
-		return s_ctx->allocInstanceDataBuffer(_num, _stride);
+		const InstanceDataBuffer* idb = s_ctx->allocInstanceDataBuffer(_num, _stride);
+		BX_CHECK(_num == idb->size / _stride, "Failed to allocate instance data buffer (requested %d, available %d). Use bgfx::checkAvailTransient* functions to ensure availability."
+			, _num
+			, idb->size / _stride
+			);
+		return idb;
 	}
 
 	IndirectBufferHandle createIndirectBuffer(uint32_t _num)
@@ -2824,6 +2837,10 @@ again:
 	TextureHandle createTexture2D(BackbufferRatio::Enum _ratio, uint16_t _width, uint16_t _height, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_2D|BGFX_CAPS_FORMAT_TEXTURE_2D_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_2D_SRGB) )
+			, "Format %s is not supported for 2D texture. Use bgfx::getCaps to check available texture formats."
+			, getName(_format)
+			);
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
@@ -2884,6 +2901,10 @@ again:
 	{
 		BGFX_CHECK_MAIN_THREAD();
 		BGFX_CHECK_CAPS(BGFX_CAPS_TEXTURE_3D, "Texture3D is not supported!");
+		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_3D|BGFX_CAPS_FORMAT_TEXTURE_3D_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_3D_SRGB) )
+			, "Format %s is not supported for 3D texture. Use bgfx::getCaps to check available texture formats."
+			, getName(_format)
+			);
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
@@ -2924,6 +2945,10 @@ again:
 	TextureHandle createTextureCube(uint16_t _size, uint8_t _numMips, TextureFormat::Enum _format, uint32_t _flags, const Memory* _mem)
 	{
 		BGFX_CHECK_MAIN_THREAD();
+		BX_CHECK(0 != (g_caps.formats[_format] & (BGFX_CAPS_FORMAT_TEXTURE_CUBE|BGFX_CAPS_FORMAT_TEXTURE_CUBE_EMULATED|BGFX_CAPS_FORMAT_TEXTURE_CUBE_SRGB) )
+			, "Format %s is not supported for cube texture. Use bgfx::getCaps to check available texture formats."
+			, getName(_format)
+			);
 
 		_numMips = uint8_t(bx::uint32_max(1, _numMips) );
 
