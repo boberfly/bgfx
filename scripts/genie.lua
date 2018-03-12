@@ -465,6 +465,7 @@ or _OPTIONS["with-combined-examples"] then
 		, "35-dynamic"
 		, "36-sky"
 		, "37-gpudrivenrendering"
+		, "38-tessellation"
 		)
 
 	-- C99 source doesn't compile under WinRT settings

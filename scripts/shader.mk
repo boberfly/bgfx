@@ -47,6 +47,8 @@ ifeq ($(TARGET), 1)
 VS_FLAGS=--platform windows -p vs_4_0 -O 3
 FS_FLAGS=--platform windows -p ps_4_0 -O 3
 CS_FLAGS=--platform windows -p cs_5_0 -O 1
+HS_FLAGS=--platform windows -p hs_5_0 -O 3
+DS_FLAGS=--platform windows -p ds_5_0 -O 3
 SHADER_PATH=shaders/dx11
 else
 ifeq ($(TARGET), 2)
@@ -64,12 +66,16 @@ ifeq ($(TARGET), 4)
 VS_FLAGS=--platform linux -p 120
 FS_FLAGS=--platform linux -p 120
 CS_FLAGS=--platform linux -p 430
+HS_FLAGS=--platform linux -p 430
+DS_FLAGS=--platform linux -p 430
 SHADER_PATH=shaders/glsl
 else
 ifeq ($(TARGET), 5)
 VS_FLAGS=--platform osx -p metal
 FS_FLAGS=--platform osx -p metal
 CS_FLAGS=--platform osx -p metal
+HS_FLAGS=--platform osx -p metal
+DS_FLAGS=--platform osx -p metal
 SHADER_PATH=shaders/metal
 else
 ifeq ($(TARGET), 6)
@@ -96,6 +102,8 @@ THISDIR := $(dir $(lastword $(MAKEFILE_LIST)))
 VS_FLAGS+=-i $(THISDIR)../src/ $(ADDITIONAL_INCLUDES)
 FS_FLAGS+=-i $(THISDIR)../src/ $(ADDITIONAL_INCLUDES)
 CS_FLAGS+=-i $(THISDIR)../src/ $(ADDITIONAL_INCLUDES)
+HS_FLAGS+=-i $(THISDIR)../src/ $(ADDITIONAL_INCLUDES)
+DS_FLAGS+=-i $(THISDIR)../src/ $(ADDITIONAL_INCLUDES)
 
 BUILD_OUTPUT_DIR=$(addprefix ./, $(RUNTIME_DIR)/$(SHADER_PATH))
 BUILD_INTERMEDIATE_DIR=$(addprefix $(BUILD_DIR)/, $(SHADER_PATH))
@@ -109,16 +117,34 @@ FS_DEPS=$(addprefix $(BUILD_INTERMEDIATE_DIR)/,$(addsuffix .bin.d, $(basename $(
 CS_SOURCES=$(notdir $(wildcard $(addprefix $(SHADERS_DIR), cs_*.sc)))
 CS_DEPS=$(addprefix $(BUILD_INTERMEDIATE_DIR)/,$(addsuffix .bin.d, $(basename $(notdir $(CS_SOURCES)))))
 
+HS_SOURCES=$(wildcard hs_*.sc)
+HS_DEPS=$(addprefix $(BUILD_INTERMEDIATE_DIR)/,$(addsuffix .bin.d, $(basename $(notdir $(HS_SOURCES)))))
+
+DS_SOURCES=$(wildcard ds_*.sc)
+DS_DEPS=$(addprefix $(BUILD_INTERMEDIATE_DIR)/,$(addsuffix .bin.d, $(basename $(notdir $(DS_SOURCES)))))
+
 VS_BIN = $(addprefix $(BUILD_INTERMEDIATE_DIR)/, $(addsuffix .bin, $(basename $(notdir $(VS_SOURCES)))))
 FS_BIN = $(addprefix $(BUILD_INTERMEDIATE_DIR)/, $(addsuffix .bin, $(basename $(notdir $(FS_SOURCES)))))
 CS_BIN = $(addprefix $(BUILD_INTERMEDIATE_DIR)/, $(addsuffix .bin, $(basename $(notdir $(CS_SOURCES)))))
+HS_BIN = $(addprefix $(BUILD_INTERMEDIATE_DIR)/, $(addsuffix .bin, $(basename $(notdir $(HS_SOURCES)))))
+DS_BIN = $(addprefix $(BUILD_INTERMEDIATE_DIR)/, $(addsuffix .bin, $(basename $(notdir $(DS_SOURCES)))))
 
 BIN = $(VS_BIN) $(FS_BIN)
 ASM = $(VS_ASM) $(FS_ASM)
 
-ifeq ($(TARGET), $(filter $(TARGET),1 3 4 6))
+ifeq ($(TARGET), 1)
+BIN += $(CS_BIN) $(HS_BIN) $(DS_BIN)
+ASM += $(CS_ASM) $(HS_ASM) $(DS_ASM)
+else
+ifeq ($(TARGET), 3)
 BIN += $(CS_BIN)
 ASM += $(CS_ASM)
+else
+ifeq ($(TARGET), 4)
+BIN += $(CS_BIN) $(HS_BIN) $(DS_BIN)
+ASM += $(CS_ASM) $(HS_ASM) $(DS_ASM)
+endif
+endif
 endif
 
 $(BUILD_INTERMEDIATE_DIR)/vs_%.bin : $(SHADERS_DIR)vs_%.sc
@@ -135,7 +161,17 @@ $(BUILD_INTERMEDIATE_DIR)/cs_%.bin : $(SHADERS_DIR)cs_%.sc
 	@echo [$(<)]
 	$(SILENT) $(SHADERC) $(CS_FLAGS) --type compute --depends -o $(@) -f $(<) --disasm
 	$(SILENT) cp $(@) $(BUILD_OUTPUT_DIR)/$(@F)
+	
+$(BUILD_INTERMEDIATE_DIR)/hs_%.bin : hs_%.sc
+	@echo [$(<)]
+	$(SILENT) $(SHADERC) $(HS_FLAGS) --type hull --depends -o $(@) -f $(<) --disasm
+	$(SILENT) cp $(@) $(BUILD_OUTPUT_DIR)/$(@F)
 
+$(BUILD_INTERMEDIATE_DIR)/ds_%.bin : ds_%.sc
+	@echo [$(<)]
+	$(SILENT) $(SHADERC) $(DS_FLAGS) --type domain --depends -o $(@) -f $(<) --disasm
+	$(SILENT) cp $(@) $(BUILD_OUTPUT_DIR)/$(@F)
+	
 .PHONY: all
 all: dirs $(BIN)
 	@echo Target $(SHADER_PATH)
@@ -163,3 +199,5 @@ endif # TARGET
 -include $(VS_DEPS)
 -include $(FS_DEPS)
 -include $(CS_DEPS)
+-include $(HS_DEPS)
+-include $(DS_DEPS)

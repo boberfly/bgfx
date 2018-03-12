@@ -134,21 +134,41 @@ bgfx::ShaderHandle loadShader(const char* _name)
 	return loadShader(entry::getFileReader(), _name);
 }
 
-bgfx::ProgramHandle loadProgram(bx::FileReaderI* _reader, const char* _vsName, const char* _fsName)
+bgfx::ProgramHandle loadProgram(bx::FileReaderI* _reader, const char* _vsName, const char* _fsName, const char* _hsName, const char* _dsName)
 {
 	bgfx::ShaderHandle vsh = loadShader(_reader, _vsName);
 	bgfx::ShaderHandle fsh = BGFX_INVALID_HANDLE;
+	bgfx::ShaderHandle hsh = BGFX_INVALID_HANDLE;
+	bgfx::ShaderHandle dsh = BGFX_INVALID_HANDLE;
+
 	if (NULL != _fsName)
 	{
 		fsh = loadShader(_reader, _fsName);
 	}
 
-	return bgfx::createProgram(vsh, fsh, true /* destroy shaders when program is destroyed */);
+	if (NULL != _hsName)
+	{
+		hsh = loadShader(_reader, _hsName);
+	}
+
+	if (NULL != _dsName)
+	{
+		dsh = loadShader(_reader, _dsName);
+	}
+
+	BX_CHECK(
+		(NULL == _hsName && NULL == _dsName) ||
+		(NULL != _hsName && NULL != _dsName),
+		"Hull shader without Domain shader specified or vice versa.");
+
+	return  NULL != _hsName
+		? bgfx::createProgram(vsh, fsh, hsh, dsh, true  /* destroy shaders when program is destroyed */)
+		: bgfx::createProgram(vsh, fsh, true            /* destroy shaders when program is destroyed */);
 }
 
-bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName)
+bgfx::ProgramHandle loadProgram(const char* _vsName, const char* _fsName, const char* _hsName, const char* _dsName)
 {
-	return loadProgram(entry::getFileReader(), _vsName, _fsName);
+	return loadProgram(entry::getFileReader(), _vsName, _fsName, _hsName, _dsName);
 }
 
 static void imageReleaseCb(void* _ptr, void* _userData)

@@ -322,6 +322,10 @@ vec4 bgfxTexelFetch(BgfxSampler3D _sampler, ivec3 _coord, int _lod)
 #		define textureCubeLod(_sampler, _coord, _level) bgfxTextureCubeLod(_sampler, _coord, _level)
 
 #		define texelFetch(_sampler, _coord, _lod) bgfxTexelFetch(_sampler, _coord, _lod)
+
+#       define setHullOutput(output, input, inputID) output = _input_[inputID].input
+#       define getHullOutput(input, inputID) _input_[inputID].input
+
 #	else
 
 #		define sampler2DShadow sampler2D
@@ -465,6 +469,10 @@ float rcp(float _a) { return 1.0/_a; }
 vec2  rcp(vec2  _a) { return vec2(1.0)/_a; }
 vec3  rcp(vec3  _a) { return vec3(1.0)/_a; }
 vec4  rcp(vec4  _a) { return vec4(1.0)/_a; }
+
+#	define setHullOutput(output, input, inputID) output[inputID] = input[inputID]
+#	define getHullOutput(input, inputID) input[inputID]
+
 #endif // BGFX_SHADER_LANGUAGE_*
 
 vec2 vec2_splat(float _x) { return vec2(_x, _x); }

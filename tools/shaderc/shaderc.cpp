@@ -16,6 +16,8 @@ extern "C"
 #define BGFX_CHUNK_MAGIC_CSH BX_MAKEFOURCC('C', 'S', 'H', 0x3)
 #define BGFX_CHUNK_MAGIC_FSH BX_MAKEFOURCC('F', 'S', 'H', 0x5)
 #define BGFX_CHUNK_MAGIC_VSH BX_MAKEFOURCC('V', 'S', 'H', 0x5)
+#define BGFX_CHUNK_MAGIC_HSH BX_MAKEFOURCC('H', 'S', 'H', 0x5)
+#define BGFX_CHUNK_MAGIC_DSH BX_MAKEFOURCC('D', 'S', 'H', 0x5)
 
 #define BGFX_SHADERC_VERSION_MAJOR 1
 #define BGFX_SHADERC_VERSION_MINOR 8
@@ -947,6 +949,8 @@ namespace bgfx
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_COMPUTE");
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_FRAGMENT");
 		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_VERTEX");
+		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_HULL");
+		preprocessor.setDefaultDefine("BGFX_SHADER_TYPE_DOMAIN");
 
 		char glslDefine[128];
 		bx::snprintf(glslDefine, BX_COUNTOF(glslDefine)
@@ -1019,6 +1023,14 @@ namespace bgfx
 
 		case 'v':
 			preprocessor.setDefine("BGFX_SHADER_TYPE_VERTEX=1");
+			break;
+
+		case 'h':
+			preprocessor.setDefine("BGFX_SHADER_TYPE_HULL=1");
+			break;
+
+		case 'd':
+			preprocessor.setDefine("BGFX_SHADER_TYPE_DOMAIN=1");
 			break;
 
 		default:
@@ -1118,8 +1130,10 @@ namespace bgfx
 
 		InOut shaderInputs;
 		InOut shaderOutputs;
+        InOut shaderLayout;
 		uint32_t inputHash = 0;
 		uint32_t outputHash = 0;
+        uint32_t layoutHash = 0;
 
 		char* data;
 		char* input;
@@ -1172,6 +1186,13 @@ namespace bgfx
 					raw = true;
 					str += 3;
 				}
+                else if (0 == strncmp(str, "layout", 3))
+                {
+                    str += 6;
+                    const char* comment = strstr(str, "//");
+                    eol = NULL != comment && comment < eol ? comment : eol;
+                    layoutHash = parseInOut(shaderLayout, str, eol);
+                }
 
 				input = const_cast<char*>(bx::strws(input) );
 			}
@@ -1189,11 +1210,21 @@ namespace bgfx
 				bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
 				bx::write(_writer, outputHash);
 			}
-			else
+            else if ('c' == shaderType)
 			{
 				bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
 				bx::write(_writer, outputHash);
 			}
+            else if ('d' == shaderType)
+            {
+                bx::write(_writer, BGFX_CHUNK_MAGIC_DSH);
+                bx::write(_writer, outputHash);
+            }
+            else 
+            {
+                bx::write(_writer, BGFX_CHUNK_MAGIC_HSH);
+                bx::write(_writer, outputHash);
+            }
 
 			if (0 != glsl)
 			{
@@ -1372,6 +1403,450 @@ namespace bgfx
 					}
 				}
 			}
+		}
+        else if ('h' == shaderType || 'd' == shaderType)
+        {
+            compiled = false;
+            const bool isHullShader = 'h' == shaderType;
+
+            char* entry = strstr(input, "void main()");
+            if (NULL == entry)
+            {
+                fprintf(stderr, "Shader entry point 'void main()' is not found.\n");
+            }
+            else
+            {
+                char* perpatch_entry = strstr(input, "void main_perpatch()");
+                if ('h' == shaderType && NULL == perpatch_entry)
+                {
+                    fprintf(stderr, "Hull shader needs an 'void main_perpatch()' to be executed per patch.\n");
+                }
+                else
+                {
+                    if (0 != glsl
+                        || 0 != essl
+                        || 0 != metal)
+                    {
+                        // TODO @ LSBOSS: Are those reasonable defaults?
+                        std::string domain = "triangles";
+                        int vertexCount = 3;
+                        std::string spacing = "equal_spacing";
+                        std::string ordering = "cw";
+
+                        for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
+                        {
+                            if (*it == "cw" || *it == "ccw")
+                            {
+                                ordering = *it;
+                            }
+                            else if (*it == "triangles" || *it == "quads")
+                            {
+                                domain = *it;
+                            }
+                            else if (*it == "equal_spacing" || *it == "fractional_even_spacing" || *it == "fractional_odd_spacing")
+                            {
+                                spacing = *it;
+                            }
+                            else
+                            {
+                                vertexCount = std::stoi(*it);
+                            }
+                        }
+
+                        if (isHullShader)
+                        {
+                            preprocessor.writef("layout(vertices = %d) out;\n", vertexCount);
+
+                            // Call per patch function at the end of main in GLSL
+                            const char* brace = strstr(entry, "{");
+                            if (NULL != brace)
+                            {
+                                const char* end = bx::strmb(brace, '{', '}');
+                                if (NULL != end)
+                                {
+                                    strins(const_cast<char*>(end), "if(gl_InvocationID==0) { main_perpatch(); }\n");
+                                }
+                            }
+
+
+                        }
+                        else
+                        {
+                            preprocessor.writef("layout(%s, %s, %s) in;\n",
+                                domain.c_str(),
+                                spacing.c_str(),
+                                ordering.c_str());
+                        }
+
+
+                        const bool needsInputArrayAnnotation = true;
+                        for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+                                const char* name = var.m_name.c_str();
+
+                                preprocessor.writef("%s in %s %s %s%s;\n"
+                                    , var.m_interpolation.c_str()
+                                    , var.m_precision.c_str()
+                                    , var.m_type.c_str()
+                                    , name
+                                    , needsInputArrayAnnotation ? "[]" : ""
+                                    );
+                            }
+                        }
+
+                        const bool needsOutputArrayAnnotation = isHullShader;
+                        for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+
+                                preprocessor.writef("%s out %s %s%s;\n"
+                                    , var.m_interpolation.c_str()
+                                    , var.m_type.c_str()
+                                    , var.m_name.c_str()
+                                    , needsOutputArrayAnnotation ? "[]" : ""
+                                    );
+                            }
+                        }
+                    }
+                    else
+                    {
+                        preprocessor.writef(
+                            "#define lowp\n"
+                            "#define mediump\n"
+                            "#define highp\n"
+                            "#define ivec2 int2\n"
+                            "#define ivec3 int3\n"
+                            "#define ivec4 int4\n"
+                            "#define uvec2 uint2\n"
+                            "#define uvec3 uint3\n"
+                            "#define uvec4 uint4\n"
+                            "#define vec2 float2\n"
+                            "#define vec3 float3\n"
+                            "#define vec4 float4\n"
+                            "#define mat2 float2x2\n"
+                            "#define mat3 float3x3\n"
+                            "#define mat4 float4x4\n"
+                            );
+
+                        // Extract tesselator settings from file
+                        // TODO @ LSBOSS: Are those reasonable defaults?
+                        std::string domain = "tri";
+                        int vertexCount = 3;
+                        std::string spacing = "integer";
+                        std::string ordering = "triangle_cw";
+
+                        for (InOut::const_iterator it = shaderLayout.begin(), itEnd = shaderLayout.end(); it != itEnd; ++it)
+                        {
+                            if (*it == "cw" || *it == "ccw")
+                            {
+                                ordering = *it == "cw" ? "triangle_cw" : "triangle_ccw";
+                            }
+                            else if (*it == "triangles" || *it == "quads")
+                            {
+                                domain = *it == "triangles" ? "tri" : "quad";
+                            }
+                            else if (*it == "equal_spacing" || *it == "fractional_even_spacing" || *it == "fractional_odd_spacing")
+                            {
+                                spacing = *it == "equal_spacing" ? "integer" : (*it == "fractional_even_spacing" ? "fractional_even" :"fractional_odd");
+                            }
+                            else
+                            {
+                                vertexCount = std::stoi(*it);
+                            }
+                        }
+
+                        const bool hasLocalPosition = NULL != strstr(input, "gl_Position");
+
+                        // Transform output variables to a shader output struct 
+                        preprocessor.writef(
+                            "struct ShaderOutput\n"
+                            "{\n");
+
+                        if (hasLocalPosition)
+                        {
+                            preprocessor.writef(
+                                "\tvec4 gl_Position : SV_POSITION;\n"
+                                "#define gl_Position _output_.gl_Position\n"
+                                );
+                        }
+
+                        for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+                                preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                                preprocessor.writef("#define %s _output_.%s\n", var.m_name.c_str(), var.m_name.c_str());
+                            }
+                        }
+                        preprocessor.writef("};\n");
+
+                        // Transform input variables to a shader input struct 
+                        preprocessor.writef(
+                            "struct ShaderInput\n"
+                            "{\n");
+                        for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
+                        {
+                            VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
+                            if (varyingIt != varyingMap.end())
+                            {
+                                const Varying& var = varyingIt->second;
+                                preprocessor.writef("\t%s %s : %s;\n", var.m_type.c_str(), var.m_name.c_str(), var.m_semantics.c_str());
+                                //preprocessor.writef("#define %s _input_[gl_InvocationID].%s\n", var.m_name.c_str(), var.m_name.c_str());
+                            }
+                        }
+                        preprocessor.writef("};\n");
+
+                        preprocessor.writef(
+                            "struct %s\n"
+                            "{\n", isHullShader ? "ShaderConstantOutput" : "ShaderConstantInput");
+
+                        preprocessor.writef("\tfloat gl_TessLevelOuter[%i] : SV_TessFactor;\n", vertexCount);
+                        preprocessor.writef("#define gl_TessLevelOuter %s.gl_TessLevelOuter\n", isHullShader ? "_constoutput_" : "_constinput_");
+
+                        preprocessor.writef("\tfloat gl_TessLevelInner[%i] : SV_InsideTessFactor;\n", vertexCount - 2);
+                        preprocessor.writef("#define gl_TessLevelInner %s.gl_TessLevelInner\n", isHullShader ? "_constoutput_" : "_constinput_");
+                        
+                        preprocessor.writef("};\n");
+
+                        uint32_t arg = 0;
+                        // modify main_perpatch to have actual input/output                         
+                        if (isHullShader)
+                        {
+                            perpatch_entry[4] = '_';
+
+                            preprocessor.writef("\n#define void_main_perpatch()");
+                            preprocessor.writef(" \\\n\tShaderConstantOutput main_perpatch(");
+                            preprocessor.writef(
+                                " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                            preprocessor.writef(
+                                ") \\\n"
+                                "{ \\\n"
+                                "\tShaderConstantOutput _constoutput_;"
+                                );
+
+                            preprocessor.writef(
+                                "\n#define __RETURN_PER_PATCH__ \\\n"
+                                "\t} \\\n"
+                                "\treturn _constoutput_"
+                                );
+                        }
+
+                        entry[4] = '_';
+                        // modify main to have actual input/output                         
+                        preprocessor.writef("\n#define void_main()");
+                        preprocessor.writef(" \\\n\tShaderOutput main(");                        
+
+                        arg = 0;
+
+                        if (isHullShader)
+                        {
+                            preprocessor.writef(
+                                " \\\n\t%sInputPatch<ShaderInput, %i> _input_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                            preprocessor.writef(
+                                " \\\n\t%suint gl_InvocationID : SV_OutputControlPointID"
+                                , arg++ > 0 ? ", " : "  "
+                                );
+                        }
+                        else {
+                            preprocessor.writef(
+                                " \\\n\t%sconst OutputPatch<ShaderInput, %i> _input_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                            preprocessor.writef(
+                                " \\\n\t%sfloat3 gl_TessCoord : SV_DomainLocation"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+
+                            preprocessor.writef(
+                                " \\\n\t%sShaderConstantInput _constinput_"
+                                , arg++ > 0 ? ", " : "  "
+                                , vertexCount
+                                );
+                        }
+
+                        preprocessor.writef(
+                            ") \\\n"
+                            "{ \\\n"
+                            "\tShaderOutput _output_;"
+                            );
+
+                        preprocessor.writef(
+                            "\n#define __RETURN__ \\\n"
+                            "\t} \\\n"
+                            "\treturn _output_"
+                            );
+
+
+                        // Insertions have to be done from bottom to top to avoid unecessary pointer operations
+                        const char* brace = strstr(entry, "{");
+                        if (NULL != brace)
+                        {
+                            const char* end = bx::strmb(brace, '{', '}');
+                            if (NULL != end)
+                            {
+                                strins(const_cast<char*>(end), "__RETURN__;\n");
+                            }
+                        }
+
+
+                        //  write hull shader annotation right before the main function
+                        char hullAnnotation[1024];
+                        if (isHullShader)
+                        {
+                            sprintf(hullAnnotation,
+                                "[domain(\"%s\")]\n"
+                                "[partitioning(\"%s\")]\n"
+                                "[outputtopology(\"%s\")]\n"
+                                "[outputcontrolpoints(%i)]\n"
+                                "[patchconstantfunc(\"main_perpatch\")]\n",
+                                domain.c_str(),
+                                spacing.c_str(),
+                                ordering.c_str(),
+                                vertexCount
+                                );
+                        }
+                        else {
+                            sprintf(hullAnnotation,
+                                "[domain(\"%s\")]\n",
+                                domain.c_str()                                
+                                );
+                        }
+                        strins(const_cast<char*>(entry), hullAnnotation);
+
+                        if (isHullShader)
+                        {
+                            const char* brace2 = strstr(perpatch_entry, "{");
+                            if (NULL != brace2)
+                            {
+                                const char* end = bx::strmb(brace2, '{', '}');
+                                if (NULL != end)
+                                {
+                                    strins(const_cast<char*>(end), "__RETURN_PER_PATCH__;\n");
+                                }
+                            }
+                        }
+                    }
+
+                    if (preprocessor.run(input))
+                    {
+                        BX_TRACE("Input file: %s", filePath);
+                        BX_TRACE("Output file: %s", outFilePath);
+
+                        if (preprocessOnly)
+                        {
+                            // TODO @ LSBOSS: Implement
+                        }
+
+                        {
+                            bx::CrtFileWriter* writer = NULL;
+                            if (NULL != bin2c)
+                            {
+                                writer = new Bin2cWriter(bin2c);
+                            }
+                            else
+                            {
+                                writer = new bx::CrtFileWriter;
+                            }
+
+                            if (0 != writer->open(outFilePath))
+                            {
+                                fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
+                                return EXIT_FAILURE;
+                            }
+
+                            if ('d' == shaderType)
+                            {
+                                bx::write(writer, BGFX_CHUNK_MAGIC_DSH);
+                                bx::write(writer, outputHash);
+                            }
+                            else
+                            {
+                                bx::write(writer, BGFX_CHUNK_MAGIC_HSH);
+                                bx::write(writer, outputHash);
+                            }
+
+                            if (0 != glsl
+                                || 0 != essl
+                                || 0 != metal)
+                            {
+                                std::string code;
+
+                                code += preprocessor.m_preprocessed;
+
+                                if ('d' == shaderType || 'h' == shaderType)
+                                {
+                                    compiled = true;
+
+                                    // 0 Uniforms for now
+                                    uint16_t count = 0;
+                                    bx::write(writer, count);
+
+                                    uint32_t shaderSize = code.size();
+                                    bx::write(writer, shaderSize);
+                                    bx::write(writer, code.c_str(), code.size());
+                                    uint8_t nul = 0;
+                                    bx::write(writer, nul);
+                                }
+                                else
+                                {
+                                    compiled = compileGLSLShader(cmdLine
+                                        , metal ? BX_MAKEFOURCC('M', 'T', 'L', 0) : essl
+                                        , code
+                                        , writer
+                                        );
+                                }
+                            }
+                            else
+                            {
+                                compiled = compileHLSLShader(cmdLine
+                                    , d3d
+                                    , preprocessor.m_preprocessed
+                                    , writer
+                                    );
+                            }
+
+                            writer->close();
+                            delete writer;
+                        }
+
+                        if (compiled)
+                        {
+                            if (depends)
+                            {
+                                std::string ofp = outFilePath;
+                                ofp += ".d";
+                                bx::CrtFileWriter writer;
+                                if (0 == writer.open(ofp.c_str()))
+                                {
+                                    writef(&writer, "%s : %s\n", outFilePath, preprocessor.m_depends.c_str());
+                                    writer.close();
+                                }
+                            }
+                        }
+
+                    }
+                }
+            }
 		}
 		else // Vertex/Fragment
 		{
@@ -1628,12 +2103,20 @@ namespace bgfx
 							}
 						}
 
+						const bool hasLocalPosition = NULL != strstr(input, "gl_Position");
+
 						preprocessor.writef(
 							"struct Output\n"
-							"{\n"
-							"\tvec4 gl_Position : SV_POSITION;\n"
-							"#define gl_Position _varying_.gl_Position\n"
-							);
+							"{\n");
+
+						if (hasLocalPosition)
+						{
+							preprocessor.writef(
+								"\tvec4 gl_Position : SV_POSITION;\n"
+								"#define gl_Position _varying_.gl_Position\n"
+								);
+						}
+
 						for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
 						{
 							VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
@@ -1783,9 +2266,19 @@ namespace bgfx
 							bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
 							bx::write(_writer, outputHash);
 						}
-						else
+						else if ('c' == shaderType)
 						{
 							bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
+							bx::write(_writer, outputHash);
+						}
+						else if ('d' == shaderType)
+						{
+							bx::write(_writer, BGFX_CHUNK_MAGIC_DSH);
+							bx::write(_writer, outputHash);
+						}
+						else
+						{
+							bx::write(_writer, BGFX_CHUNK_MAGIC_HSH);
 							bx::write(_writer, outputHash);
 						}
 

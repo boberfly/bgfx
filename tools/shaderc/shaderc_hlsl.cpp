@@ -715,7 +715,13 @@ namespace bgfx { namespace hlsl
 			uint16_t count = (uint16_t)uniforms.size();
 			bx::write(_writer, count);
 
-			uint32_t fragmentBit = profile[0] == 'p' ? BGFX_UNIFORM_FRAGMENTBIT : 0;
+			uint32_t fragmentBit = profile[0] == 'p'
+				? BGFX_UNIFORM_FRAGMENTBIT
+				: profile[0] == 'h'
+					? BGFX_UNIFORM_HULLBIT
+					: profile[0] == 'd'
+						? BGFX_UNIFORM_DOMAINBIT
+						: 0;
 			for (UniformArray::const_iterator it = uniforms.begin(); it != uniforms.end(); ++it)
 			{
 				const Uniform& un = *it;

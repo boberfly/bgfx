@@ -488,6 +488,25 @@ namespace bgfx
 		return handle;
 	}
 
+	const char* magic_to_string(uint32_t magic)
+	{
+		switch (magic)
+		{
+		case BGFX_CHUNK_MAGIC_FSH:
+			return "Fragment";
+		case BGFX_CHUNK_MAGIC_VSH:
+			return "Vertex";
+		case BGFX_CHUNK_MAGIC_CSH:
+			return "Compute";
+		case BGFX_CHUNK_MAGIC_HSH:
+			return "Hull";
+		case BGFX_CHUNK_MAGIC_DSH:
+			return "Domain";
+		}
+
+		return "Unknown";
+	}
+
 #include "charset.h"
 
 	void charsetFillTexture(const uint8_t* _charset, uint8_t* _rgba, uint32_t _height, uint32_t _pitch, uint32_t _bpp)
@@ -1167,6 +1186,7 @@ namespace bgfx
 		CAPS_FLAGS(BGFX_CAPS_TEXTURE_READ_BACK),
 		CAPS_FLAGS(BGFX_CAPS_VERTEX_ATTRIB_HALF),
 		CAPS_FLAGS(BGFX_CAPS_VERTEX_ATTRIB_UINT10),
+		CAPS_FLAGS(BGFX_CAPS_TESSELLATION),
 #undef CAPS_FLAGS
 	};
 
@@ -2442,7 +2462,13 @@ namespace bgfx
 					ShaderHandle fsh;
 					_cmdbuf.read(fsh);
 
-					m_renderCtx->createProgram(handle, vsh, fsh);
+					ShaderHandle hsh;
+					_cmdbuf.read(hsh);
+
+					ShaderHandle dsh;
+					_cmdbuf.read(dsh);
+
+					m_renderCtx->createProgram(handle, vsh, fsh, hsh, dsh);
 				}
 				break;
 
@@ -3513,6 +3539,16 @@ error:
 		}
 
 		return s_ctx->createProgram(_vsh, _fsh, _destroyShaders);
+	}
+
+	ProgramHandle createProgram(ShaderHandle _vsh, ShaderHandle _fsh, ShaderHandle _hsh, ShaderHandle _dsh, bool _destroyShaders)
+	{
+		if (!isValid(_fsh))
+		{
+			return createProgram(_vsh, _destroyShaders);
+		}
+
+		return s_ctx->createProgram(_vsh, _fsh, _hsh, _dsh, _destroyShaders);
 	}
 
 	ProgramHandle createProgram(ShaderHandle _csh, bool _destroyShader)

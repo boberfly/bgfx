@@ -159,6 +159,8 @@ namespace bgfx { namespace d3d11
 
 		union
 		{
+			ID3D11DomainShader*  m_domainShader;
+			ID3D11HullShader*    m_hullShader;
 			ID3D11ComputeShader* m_computeShader;
 			ID3D11PixelShader*   m_pixelShader;
 			ID3D11VertexShader*  m_vertexShader;
@@ -183,10 +185,12 @@ namespace bgfx { namespace d3d11
 		ProgramD3D11()
 			: m_vsh(NULL)
 			, m_fsh(NULL)
+			, m_hsh(NULL)
+			, m_dsh(NULL)
 		{
 		}
 
-		void create(const ShaderD3D11* _vsh, const ShaderD3D11* _fsh)
+		void create(const ShaderD3D11* _vsh, const ShaderD3D11* _fsh, const ShaderD3D11* _hsh, const ShaderD3D11* _dsh)
 		{
 			BX_CHECK(NULL != _vsh->m_ptr, "Vertex shader doesn't exist.");
 			m_vsh = _vsh;
@@ -200,6 +204,22 @@ namespace bgfx { namespace d3d11
 				bx::memCopy(&m_predefined[m_numPredefined], _fsh->m_predefined, _fsh->m_numPredefined*sizeof(PredefinedUniform) );
 				m_numPredefined += _fsh->m_numPredefined;
 			}
+
+			if (NULL != _hsh)
+			{
+				BX_CHECK(NULL != _hsh->m_ptr, "Hull shader doesn't exist.");
+				m_hsh = _hsh;
+				memcpy(&m_predefined[m_numPredefined], _hsh->m_predefined, _hsh->m_numPredefined*sizeof(PredefinedUniform));
+				m_numPredefined += _hsh->m_numPredefined;
+			}
+
+			if (NULL != _dsh)
+			{
+				BX_CHECK(NULL != _dsh->m_ptr, "Domain shader doesn't exist.");
+				m_dsh = _dsh;
+				memcpy(&m_predefined[m_numPredefined], _dsh->m_predefined, _dsh->m_numPredefined*sizeof(PredefinedUniform));
+				m_numPredefined += _dsh->m_numPredefined;
+			}
 		}
 
 		void destroy()
@@ -207,10 +227,15 @@ namespace bgfx { namespace d3d11
 			m_numPredefined = 0;
 			m_vsh = NULL;
 			m_fsh = NULL;
+			m_hsh = NULL;
+			m_dsh = NULL;
 		}
 
 		const ShaderD3D11* m_vsh;
 		const ShaderD3D11* m_fsh;
+		const ShaderD3D11* m_hsh;
+		const ShaderD3D11* m_dsh;
+
 
 		PredefinedUniform m_predefined[PredefinedUniform::Count*2];
 		uint8_t m_numPredefined;
