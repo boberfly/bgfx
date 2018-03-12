@@ -353,10 +353,10 @@ struct Prop
 	RenderPass::Enum m_renderPass;
 };
 
-//A simplistic material, comprised of a colour only
+//A simplistic material, comprised of a color only
 struct Material
 {
-	float m_colour[4];
+	float m_color[4];
 };
 
 inline void setVector4(float* dest, float x, float y, float z, float w)
@@ -419,10 +419,11 @@ public:
 		// Enable debug text.
 		bgfx::setDebug(m_debug);
 
-		//create uniforms
-		u_inputRTSize   = bgfx::createUniform("u_inputRTSize", bgfx::UniformType::Vec4);
-		u_cullingConfig = bgfx::createUniform("u_cullingConfig", bgfx::UniformType::Vec4);
-		u_colour        = bgfx::createUniform("u_colour", bgfx::UniformType::Vec4);
+		// Create uniforms and samplers.
+		u_inputRTSize       = bgfx::createUniform("u_inputRTSize",       bgfx::UniformType::Vec4);
+		u_cullingConfig     = bgfx::createUniform("u_cullingConfig",     bgfx::UniformType::Vec4);
+		u_color             = bgfx::createUniform("u_color",             bgfx::UniformType::Vec4, 32);
+		s_texOcclusionDepth = bgfx::createUniform("s_texOcclusionDepth", bgfx::UniformType::Int1);
 
 		//create props
 		{
@@ -464,7 +465,7 @@ public:
 				bx::vec4MulMtx(prop.m_instances->m_bboxMax, temp, prop.m_instances->m_world);
 
 				prop.m_materialID = m_noofMaterials;
-				setVector4(m_materials[prop.m_materialID].m_colour, 0.0f, 0.6f, 0.0f, 1.0f);
+				setVector4(m_materials[prop.m_materialID].m_color, 0.0f, 0.6f, 0.0f, 1.0f);
 				m_noofMaterials++;
 
 				m_totalInstancesCount += prop.m_noofInstances;
@@ -504,7 +505,7 @@ public:
 				prop.m_materialID = m_noofMaterials;
 
 				//add a "material" for this prop
-				setVector4(m_materials[prop.m_materialID].m_colour, 0.0f, 0.0f, 1.0f, 0.0f);
+				setVector4(m_materials[prop.m_materialID].m_color, 0.0f, 0.0f, 1.0f, 0.0f);
 				m_noofMaterials++;
 
 				m_totalInstancesCount += prop.m_noofInstances;
@@ -539,7 +540,7 @@ public:
 					}
 
 					prop.m_materialID = m_noofMaterials;
-					setVector4(m_materials[prop.m_materialID].m_colour, 1.0f, 1.0f, 0.0f, 1.0f);
+					setVector4(m_materials[prop.m_materialID].m_color, 1.0f, 1.0f, 0.0f, 1.0f);
 					m_noofMaterials++;
 
 					m_totalInstancesCount += prop.m_noofInstances;
@@ -572,7 +573,7 @@ public:
 					}
 
 					prop.m_materialID = m_noofMaterials;
-					setVector4(m_materials[prop.m_materialID].m_colour, 1.0f, 0.0f, 0.0f, 1.0f);
+					setVector4(m_materials[prop.m_materialID].m_color, 1.0f, 0.0f, 0.0f, 1.0f);
 					m_noofMaterials++;
 
 					m_totalInstancesCount += prop.m_noofInstances;
@@ -773,9 +774,6 @@ public:
 			BGFX_BUFFER_COMPUTE_READ | BGFX_BUFFER_INDEX32
 		);
 
-		//create samplers
-		s_texOcclusionDepthIn = bgfx::createUniform("s_texOcclusionDepthIn", bgfx::UniformType::Int1);
-
 		m_timeOffset = bx::getHPCounter();
 
 		m_useIndirect = true;
@@ -822,10 +820,10 @@ public:
 		bgfx::destroy(m_allPropsVertexbufferHandle);
 		bgfx::destroy(m_allPropsIndexbufferHandle);
 
-		bgfx::destroy(s_texOcclusionDepthIn);
+		bgfx::destroy(s_texOcclusionDepth);
 		bgfx::destroy(u_inputRTSize);
 		bgfx::destroy(u_cullingConfig);
-		bgfx::destroy(u_colour);
+		bgfx::destroy(u_color);
 
 		delete[] m_allPropVerticesDataCPU;
 		delete[] m_allPropIndicesDataCPU;
@@ -898,28 +896,28 @@ public:
 		uint32_t width = m_hiZwidth;
 		uint32_t height = m_hiZheight;
 
-		for (uint8_t i = 0; i < m_noofHiZMips; i++)
+		for (uint8_t lod = 0; lod < m_noofHiZMips; ++lod)
 		{
-			float coordinateScale = i > 0 ? 2.0f : 1.0f;
+			float coordinateScale = lod > 0 ? 2.0f : 1.0f;
 
 			float inputRendertargetSize[4] = { (float)width, (float)height, coordinateScale, coordinateScale };
 			bgfx::setUniform(u_inputRTSize, inputRendertargetSize);
 
-			if (i > 0)
+			if (lod > 0)
 			{
 				// down scale mip 1 onwards
 				width /= 2;
 				height /= 2;
 
-				bgfx::setImage(0, getTexture(m_hiZBuffer, 0), i - 1, bgfx::Access::Read);
-				bgfx::setImage(1, getTexture(m_hiZBuffer, 0), i, bgfx::Access::Write);
+				bgfx::setImage(0, getTexture(m_hiZBuffer, 0), lod - 1, bgfx::Access::Read);
+				bgfx::setImage(1, getTexture(m_hiZBuffer, 0), lod,     bgfx::Access::Write);
 			}
 			else
 			{
 				// copy mip zero over to the hi Z buffer.
 				// We can't currently use blit as it requires same format and CopyResource is not exposed.
 				bgfx::setImage(0, getTexture(m_hiZDepthBuffer, 0), 0, bgfx::Access::Read);
-				bgfx::setImage(1, getTexture(m_hiZBuffer, 0), 0, bgfx::Access::Write);
+				bgfx::setImage(1, getTexture(m_hiZBuffer,      0), 0, bgfx::Access::Write);
 			}
 
 			bgfx::dispatch(RENDER_PASS_HIZ_DOWNSCALE_ID, m_programDownscaleHiZ, width/16, height/16);
@@ -930,11 +928,11 @@ public:
 	void renderOccludePropsPass()
 	{
 		// run the computer shader to determine visibility of each instance
-		bgfx::setTexture(0, s_texOcclusionDepthIn, bgfx::getTexture(m_hiZBuffer));
+		bgfx::setTexture(0, s_texOcclusionDepth, bgfx::getTexture(m_hiZBuffer, 0) );
 
-		bgfx::setBuffer(1, m_instanceBoundingBoxes, bgfx::Access::Read);
+		bgfx::setBuffer(1, m_instanceBoundingBoxes,  bgfx::Access::Read);
 		bgfx::setBuffer(2, m_drawcallInstanceCounts, bgfx::Access::ReadWrite);
-		bgfx::setBuffer(3, m_instancePredicates, bgfx::Access::Write);
+		bgfx::setBuffer(3, m_instancePredicates,     bgfx::Access::Write);
 
 		float inputRendertargetSize[4] = { (float)m_hiZwidth, (float)m_hiZheight, 1.0f/ m_hiZwidth, 1.0f/ m_hiZheight };
 		bgfx::setUniform(u_inputRTSize, inputRendertargetSize);
@@ -942,7 +940,13 @@ public:
 		// store a rounded-up, power of two instance count for the stream compaction step
 		float noofInstancesPowOf2 = bx::pow(2.0f, bx::floor(bx::log(m_totalInstancesCount) / bx::log(2.0f) ) + 1.0f);
 
-		float cullingConfig[4] = { (float)m_totalInstancesCount, noofInstancesPowOf2 , (float)m_noofHiZMips, (float)m_noofProps };
+		float cullingConfig[4] =
+		{
+			(float)m_totalInstancesCount,
+			noofInstancesPowOf2,
+			(float)m_noofHiZMips,
+			(float)m_noofProps
+		};
 		bgfx::setUniform(u_cullingConfig, cullingConfig);
 
 		//set the view/projection transforms so that the compute shader can receive the viewProjection matrix automagically
@@ -1002,8 +1006,8 @@ public:
 
 		const uint16_t instanceStride = sizeof(InstanceData);
 
-		// Set "material" data (currently a colour only)
-		bgfx::setUniform(u_colour, &m_materials[0].m_colour, m_noofMaterials);
+		// Set "material" data (currently a color only)
+		bgfx::setUniform(u_color, &m_materials[0].m_color, m_noofMaterials);
 
 		if (m_useIndirect)
 		{
@@ -1199,10 +1203,10 @@ public:
 	bgfx::VertexBufferHandle m_instanceBuffer;
 	bgfx::DynamicVertexBufferHandle m_culledInstanceBuffer;
 
-	bgfx::UniformHandle s_texOcclusionDepthIn;
+	bgfx::UniformHandle s_texOcclusionDepth;
 	bgfx::UniformHandle u_inputRTSize;
 	bgfx::UniformHandle u_cullingConfig;
-	bgfx::UniformHandle u_colour;
+	bgfx::UniformHandle u_color;
 
 	Prop*	m_props;
 	Material* m_materials;

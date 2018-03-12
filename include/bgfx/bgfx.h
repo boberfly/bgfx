@@ -2859,6 +2859,8 @@ namespace bgfx
 	/// @returns Returns invalid texture handle if attachment index is not
 	///   correct, or frame buffer is created with native window handle.
 	///
+	/// @attention C99 equivalent is `bgfx_get_texture`.
+	///
 	TextureHandle getTexture(
 		  FrameBufferHandle _handle
 		, uint8_t _attachment = 0

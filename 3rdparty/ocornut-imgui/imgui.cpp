@@ -19,7 +19,7 @@
    - Read first
    - How to update to a newer version of Dear ImGui
    - Getting started with integrating Dear ImGui in your code/engine
-   - Using gamepad/keyboard navigation [BETA]
+   - Using gamepad/keyboard navigation controls [BETA]
  - API BREAKING CHANGES (read me when you update!)
  - ISSUES & TODO LIST
  - FREQUENTLY ASKED QUESTIONS (FAQ), TIPS
@@ -76,7 +76,8 @@
    - ESCAPE to revert text to its original value.
    - You can apply arithmetic operators +,*,/ on numerical values. Use +- to subtract (because - would set a negative value!)
    - Controls are automatically adjusted for OSX to match standard OSX text editing operations.
- - Gamepad navigation: see suggested mappings in imgui.h ImGuiNavInput_ + download PNG/PSD at goo.gl/9LgVZW.
+ - General Keyboard controls: enable with ImGuiConfigFlags_NavEnableKeyboard.
+ - General Gamepad controls: enable with ImGuiConfigFlags_NavEnableGamepad. See suggested mappings in imgui.h ImGuiNavInput_ + download PNG/PSD at goo.gl/9LgVZW.
 
 
  PROGRAMMER GUIDE
@@ -210,9 +211,9 @@
    They tell you if ImGui intends to use your inputs. So for example, if 'io.WantCaptureMouse' is set you would typically want to hide 
    mouse inputs from the rest of your application. Read the FAQ below for more information about those flags.
 
- USING GAMEPAD/KEYBOARD NAVIGATION [BETA]
+ USING GAMEPAD/KEYBOARD NAVIGATION CONTROLS [BETA]
 
- - Ask questions and report issues at https://github.com/ocornut/imgui/issues/787
+ - The gamepad/keyboard navigation is in Beta. Ask questions and report issues at https://github.com/ocornut/imgui/issues/787
  - The initial focus was to support game controllers, but keyboard is becoming increasingly and decently usable.
  - Keyboard:
     - Set io.ConfigFlags |= ImGuiConfigFlags_NavEnableKeyboard to enable. NewFrame() will automatically fill io.NavInputs[] based on your io.KeyDown[] + io.KeyMap[] arrays.
@@ -227,13 +228,13 @@
     - See 'enum ImGuiNavInput_' in imgui.h for a description of inputs. For each entry of io.NavInputs[], set the following values:
          0.0f= not held. 1.0f= fully held. Pass intermediate 0.0f..1.0f values for analog triggers/sticks.
     - We uses a simple >0.0f test for activation testing, and won't attempt to test for a dead-zone.
-      Your code will probably need to transform your raw inputs (such as e.g. remapping your 0.2..0.9 raw input range to 0.0..1.0 imgui range, maybe a power curve, etc.).
+      Your code will probably need to transform your raw inputs (such as e.g. remapping your 0.2..0.9 raw input range to 0.0..1.0 imgui range, etc.).
     - You can download PNG/PSD files depicting the gamepad controls for common controllers at: goo.gl/9LgVZW.
     - If you need to share inputs between your game and the imgui parts, the easiest approach is to go all-or-nothing, with a buttons combo to toggle the target.
       Please reach out if you think the game vs navigation input sharing could be improved.
  - Mouse:
     - PS4 users: Consider emulating a mouse cursor with DualShock4 touch pad or a spare analog stick as a mouse-emulation fallback.
-    - Consoles/Tablet/Phone users: Consider using a Synergy 1.x server (on your PC) + uSynergy.c (in your console/tablet/phone app) to share your PC mouse/keyboard.
+    - Consoles/Tablet/Phone users: Consider using a Synergy 1.x server (on your PC) + uSynergy.c (on your console/tablet/phone app) to share your PC mouse/keyboard.
     - On a TV/console system where readability may be lower or mouse inputs may be awkward, you may want to set the ImGuiConfigFlags_NavMoveMouse flag.
       Enabling ImGuiConfigFlags_NavMoveMouse instructs dear imgui to move your mouse cursor along with navigation movements.
       When enabled, the NewFrame() function may alter 'io.MousePos' and set 'io.WantMoveMouse' to notify you that it wants the mouse cursor to be moved.
@@ -250,6 +251,7 @@
  Here is a change-log of API breaking changes, if you are using one of the functions listed, expect to have to fix some code.
  Also read releases logs https://github.com/ocornut/imgui/releases for more details.
 
+ - 2018/03/08 (1.60) - Changed ImFont::DisplayOffset.y to default to 0 instead of +1. Fixed rounding of Ascent/Descent to match TrueType renderer. If you were adding or subtracting to ImFont::DisplayOffset check if your fonts are correctly aligned vertically.
  - 2018/03/03 (1.60) - Renamed ImGuiStyleVar_Count_ to ImGuiStyleVar_COUNT and ImGuiMouseCursor_Count_ to ImGuiMouseCursor_COUNT for consistency with other public enums.
  - 2018/02/18 (1.60) - BeginDragDropSource(): temporarily removed the optional mouse_button=0 parameter because it is not really usable in many situations at the moment. 
  - 2018/02/16 (1.60) - obsoleted the io.RenderDrawListsFn callback, you can call your graphics engine render function after ImGui::Render(). Use ImGui::GetDrawData() to retrieve the ImDrawData* to display.
@@ -4031,52 +4033,47 @@ void ImGui::Render()
         ImGui::EndFrame();
     g.FrameCountRendered = g.FrameCount;
 
-    // Skip render altogether if alpha is 0.0
-    // Note that vertex buffers have been created and are wasted, so it is best practice that you don't create windows in the first place, or consistently respond to Begin() returning false.
-    if (g.Style.Alpha > 0.0f)
+    // Gather windows to render
+    g.IO.MetricsRenderVertices = g.IO.MetricsRenderIndices = g.IO.MetricsActiveWindows = 0;
+    g.DrawDataBuilder.Clear();
+    ImGuiWindow* window_to_render_front_most = (g.NavWindowingTarget && !(g.NavWindowingTarget->Flags & ImGuiWindowFlags_NoBringToFrontOnFocus)) ? g.NavWindowingTarget : NULL;
+    for (int n = 0; n != g.Windows.Size; n++)
     {
-        // Gather windows to render
-        g.IO.MetricsRenderVertices = g.IO.MetricsRenderIndices = g.IO.MetricsActiveWindows = 0;
-        g.DrawDataBuilder.Clear();
-        ImGuiWindow* window_to_render_front_most = (g.NavWindowingTarget && !(g.NavWindowingTarget->Flags & ImGuiWindowFlags_NoBringToFrontOnFocus)) ? g.NavWindowingTarget : NULL;
-        for (int n = 0; n != g.Windows.Size; n++)
-        {
-            ImGuiWindow* window = g.Windows[n];
-            if (window->Active && window->HiddenFrames <= 0 && (window->Flags & (ImGuiWindowFlags_ChildWindow)) == 0 && window != window_to_render_front_most)
-                AddWindowToDrawDataSelectLayer(window);
-        }
-        if (window_to_render_front_most && window_to_render_front_most->Active && window_to_render_front_most->HiddenFrames <= 0) // NavWindowingTarget is always temporarily displayed as the front-most window
-            AddWindowToDrawDataSelectLayer(window_to_render_front_most);
-        g.DrawDataBuilder.FlattenIntoSingleLayer();
-
-        // Draw software mouse cursor if requested
-        ImVec2 offset, size, uv[4];
-        if (g.IO.MouseDrawCursor && g.IO.Fonts->GetMouseCursorTexData(g.MouseCursor, &offset, &size, &uv[0], &uv[2]))
-        {
-            const ImVec2 pos = g.IO.MousePos - offset;
-            const ImTextureID tex_id = g.IO.Fonts->TexID;
-            const float sc = g.Style.MouseCursorScale;
-            g.OverlayDrawList.PushTextureID(tex_id);
-            g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(1,0)*sc, pos+ImVec2(1,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
-            g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(2,0)*sc, pos+ImVec2(2,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
-            g.OverlayDrawList.AddImage(tex_id, pos,                  pos + size*sc,                uv[2], uv[3], IM_COL32(0,0,0,255));       // Black border
-            g.OverlayDrawList.AddImage(tex_id, pos,                  pos + size*sc,                uv[0], uv[1], IM_COL32(255,255,255,255)); // White fill
-            g.OverlayDrawList.PopTextureID();
-        }
-        if (!g.OverlayDrawList.VtxBuffer.empty())
-            AddDrawListToDrawData(&g.DrawDataBuilder.Layers[0], &g.OverlayDrawList);
-
-        // Setup ImDrawData structure for end-user
-        SetupDrawData(&g.DrawDataBuilder.Layers[0], &g.DrawData);
-        g.IO.MetricsRenderVertices = g.DrawData.TotalVtxCount;
-        g.IO.MetricsRenderIndices = g.DrawData.TotalIdxCount;
-
-        // Render. If user hasn't set a callback then they may retrieve the draw data via GetDrawData()
-#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
-        if (g.DrawData.CmdListsCount > 0 && g.IO.RenderDrawListsFn != NULL)
-            g.IO.RenderDrawListsFn(&g.DrawData);
-#endif
+        ImGuiWindow* window = g.Windows[n];
+        if (window->Active && window->HiddenFrames <= 0 && (window->Flags & ImGuiWindowFlags_ChildWindow) == 0 && window != window_to_render_front_most)
+            AddWindowToDrawDataSelectLayer(window);
     }
+    if (window_to_render_front_most && window_to_render_front_most->Active && window_to_render_front_most->HiddenFrames <= 0) // NavWindowingTarget is always temporarily displayed as the front-most window
+        AddWindowToDrawDataSelectLayer(window_to_render_front_most);
+    g.DrawDataBuilder.FlattenIntoSingleLayer();
+
+    // Draw software mouse cursor if requested
+    ImVec2 offset, size, uv[4];
+    if (g.IO.MouseDrawCursor && g.IO.Fonts->GetMouseCursorTexData(g.MouseCursor, &offset, &size, &uv[0], &uv[2]))
+    {
+        const ImVec2 pos = g.IO.MousePos - offset;
+        const ImTextureID tex_id = g.IO.Fonts->TexID;
+        const float sc = g.Style.MouseCursorScale;
+        g.OverlayDrawList.PushTextureID(tex_id);
+        g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(1,0)*sc, pos+ImVec2(1,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
+        g.OverlayDrawList.AddImage(tex_id, pos + ImVec2(2,0)*sc, pos+ImVec2(2,0)*sc + size*sc, uv[2], uv[3], IM_COL32(0,0,0,48));        // Shadow
+        g.OverlayDrawList.AddImage(tex_id, pos,                  pos + size*sc,                uv[2], uv[3], IM_COL32(0,0,0,255));       // Black border
+        g.OverlayDrawList.AddImage(tex_id, pos,                  pos + size*sc,                uv[0], uv[1], IM_COL32(255,255,255,255)); // White fill
+        g.OverlayDrawList.PopTextureID();
+    }
+    if (!g.OverlayDrawList.VtxBuffer.empty())
+        AddDrawListToDrawData(&g.DrawDataBuilder.Layers[0], &g.OverlayDrawList);
+
+    // Setup ImDrawData structure for end-user
+    SetupDrawData(&g.DrawDataBuilder.Layers[0], &g.DrawData);
+    g.IO.MetricsRenderVertices = g.DrawData.TotalVtxCount;
+    g.IO.MetricsRenderIndices = g.DrawData.TotalIdxCount;
+
+    // Render. If user hasn't set a callback then they may retrieve the draw data via GetDrawData()
+#ifndef IMGUI_DISABLE_OBSOLETE_FUNCTIONS
+    if (g.DrawData.CmdListsCount > 0 && g.IO.RenderDrawListsFn != NULL)
+        g.IO.RenderDrawListsFn(&g.DrawData);
+#endif
 }
 
 const char* ImGui::FindRenderedTextEnd(const char* text, const char* text_end)
