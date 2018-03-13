@@ -1216,12 +1216,12 @@ namespace bgfx
 				bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
 				bx::write(_writer, outputHash);
 			}
-            else if ('c' == shaderType)
+            else if ('c' == _options.shaderType)
 			{
 				bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
 				bx::write(_writer, outputHash);
 			}
-            else if ('d' == shaderType)
+            else if ('d' == _options.shaderType)
             {
                 bx::write(_writer, BGFX_CHUNK_MAGIC_DSH);
                 bx::write(_writer, outputHash);
@@ -1410,10 +1410,10 @@ namespace bgfx
 				}
 			}
 		}
-        else if ('h' == shaderType || 'd' == shaderType)
+        else if ('h' == _options.shaderType || 'd' == _options.shaderType)
         {
             compiled = false;
-            const bool isHullShader = 'h' == shaderType;
+            const bool isHullShader = 'h' == _options.shaderType;
 
             char* entry = strstr(input, "void main()");
             if (NULL == entry)
@@ -1423,7 +1423,7 @@ namespace bgfx
             else
             {
                 char* perpatch_entry = strstr(input, "void main_perpatch()");
-                if ('h' == shaderType && NULL == perpatch_entry)
+                if ('h' == _options.shaderType && NULL == perpatch_entry)
                 {
                     fprintf(stderr, "Hull shader needs an 'void main_perpatch()' to be executed per patch.\n");
                 }
@@ -1470,7 +1470,7 @@ namespace bgfx
                                 const char* end = bx::strmb(brace, '{', '}');
                                 if (NULL != end)
                                 {
-                                    strins(const_cast<char*>(end), "if(gl_InvocationID==0) { main_perpatch(); }\n");
+									strInsert(const_cast<char*>(end), "if(gl_InvocationID==0) { main_perpatch(); }\n");
                                 }
                             }
 
@@ -1710,7 +1710,7 @@ namespace bgfx
                             const char* end = bx::strmb(brace, '{', '}');
                             if (NULL != end)
                             {
-                                strins(const_cast<char*>(end), "__RETURN__;\n");
+								strInsert(const_cast<char*>(end), "__RETURN__;\n");
                             }
                         }
 
@@ -1737,7 +1737,7 @@ namespace bgfx
                                 domain.c_str()                                
                                 );
                         }
-                        strins(const_cast<char*>(entry), hullAnnotation);
+						strInsert(const_cast<char*>(entry), hullAnnotation);
 
                         if (isHullShader)
                         {
@@ -1747,7 +1747,7 @@ namespace bgfx
                                 const char* end = bx::strmb(brace2, '{', '}');
                                 if (NULL != end)
                                 {
-                                    strins(const_cast<char*>(end), "__RETURN_PER_PATCH__;\n");
+									strInsert(const_cast<char*>(end), "__RETURN_PER_PATCH__;\n");
                                 }
                             }
                         }
@@ -1755,40 +1755,24 @@ namespace bgfx
 
                     if (preprocessor.run(input))
                     {
-                        BX_TRACE("Input file: %s", filePath);
-                        BX_TRACE("Output file: %s", outFilePath);
+                        //BX_TRACE("Input file: %s", _options.inputFilePath);
+                        //BX_TRACE("Output file: %s", _options.outputFilePath);
 
-                        if (preprocessOnly)
+                        if (_options.preprocessOnly)
                         {
                             // TODO @ LSBOSS: Implement
                         }
 
                         {
-                            bx::CrtFileWriter* writer = NULL;
-                            if (NULL != bin2c)
+                            if ('d' == _options.shaderType)
                             {
-                                writer = new Bin2cWriter(bin2c);
+                                bx::write(_writer, BGFX_CHUNK_MAGIC_DSH);
+                                bx::write(_writer, outputHash);
                             }
                             else
                             {
-                                writer = new bx::CrtFileWriter;
-                            }
-
-                            if (0 != writer->open(outFilePath))
-                            {
-                                fprintf(stderr, "Unable to open output file '%s'.", outFilePath);
-                                return EXIT_FAILURE;
-                            }
-
-                            if ('d' == shaderType)
-                            {
-                                bx::write(writer, BGFX_CHUNK_MAGIC_DSH);
-                                bx::write(writer, outputHash);
-                            }
-                            else
-                            {
-                                bx::write(writer, BGFX_CHUNK_MAGIC_HSH);
-                                bx::write(writer, outputHash);
+                                bx::write(_writer, BGFX_CHUNK_MAGIC_HSH);
+                                bx::write(_writer, outputHash);
                             }
 
                             if (0 != glsl
@@ -1799,53 +1783,48 @@ namespace bgfx
 
                                 code += preprocessor.m_preprocessed;
 
-                                if ('d' == shaderType || 'h' == shaderType)
+                                if ('d' == _options.shaderType || 'h' == _options.shaderType)
                                 {
                                     compiled = true;
 
                                     // 0 Uniforms for now
-                                    uint16_t count = 0;
-                                    bx::write(writer, count);
+                                    bx::write(_writer, uint16_t(0) );
 
-                                    uint32_t shaderSize = code.size();
-                                    bx::write(writer, shaderSize);
-                                    bx::write(writer, code.c_str(), code.size());
-                                    uint8_t nul = 0;
-                                    bx::write(writer, nul);
+                                    uint32_t shaderSize = (uint32_t)code.size();
+                                    bx::write(_writer, shaderSize);
+                                    bx::write(_writer, code.c_str(), shaderSize);
+                                    bx::write(_writer, uint8_t(0) );
                                 }
                                 else
                                 {
-                                    compiled = compileGLSLShader(cmdLine
+                                    compiled = compileGLSLShader(_options
                                         , metal ? BX_MAKEFOURCC('M', 'T', 'L', 0) : essl
                                         , code
-                                        , writer
+                                        , _writer
                                         );
                                 }
                             }
                             else
                             {
-                                compiled = compileHLSLShader(cmdLine
+                                compiled = compileHLSLShader(_options
                                     , d3d
                                     , preprocessor.m_preprocessed
-                                    , writer
+                                    , _writer
                                     );
                             }
-
-                            writer->close();
-                            delete writer;
                         }
 
                         if (compiled)
                         {
-                            if (depends)
+                            if (_options.depends)
                             {
-                                std::string ofp = outFilePath;
+                                std::string ofp = _options.outputFilePath;
                                 ofp += ".d";
-                                bx::CrtFileWriter writer;
-                                if (0 == writer.open(ofp.c_str()))
+                                bx::FileWriter writer;
+								if (bx::open(&writer, ofp.c_str() ) )
                                 {
-                                    writef(&writer, "%s : %s\n", outFilePath, preprocessor.m_depends.c_str());
-                                    writer.close();
+									writef(&writer, "%s : %s\n", _options.outputFilePath.c_str(), preprocessor.m_depends.c_str());
+									bx::close(&writer);
                                 }
                             }
                         }
@@ -2272,12 +2251,12 @@ namespace bgfx
 							bx::write(_writer, BGFX_CHUNK_MAGIC_VSH);
 							bx::write(_writer, outputHash);
 						}
-						else if ('c' == shaderType)
+						else if ('c' == _options.shaderType)
 						{
 							bx::write(_writer, BGFX_CHUNK_MAGIC_CSH);
 							bx::write(_writer, outputHash);
 						}
-						else if ('d' == shaderType)
+						else if ('d' == _options.shaderType)
 						{
 							bx::write(_writer, BGFX_CHUNK_MAGIC_DSH);
 							bx::write(_writer, outputHash);
