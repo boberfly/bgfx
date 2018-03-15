@@ -5839,7 +5839,10 @@ namespace bgfx { namespace gl
 					const bool usesPacking      = !!bx::findIdentifierMatch(code, s_ARB_shading_language_packing);
 					const bool usesInterpQ      = !!bx::findIdentifierMatch(code, s_intepolationQualifier);
 
+					const bool usesTessellation = s_extension[Extension::ARB_tessellation_shader].m_supported;
+
 					uint32_t version = BX_ENABLED(BX_PLATFORM_OSX) ? 120
+						: usesTessellation ? 150
 						:  usesTextureArray
 						|| usesTexture3D
 						|| usesIUsamplers

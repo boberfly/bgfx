@@ -1758,10 +1758,12 @@ namespace bgfx
                         //BX_TRACE("Input file: %s", _options.inputFilePath);
                         //BX_TRACE("Output file: %s", _options.outputFilePath);
 
-                        if (_options.preprocessOnly)
-                        {
-                            // TODO @ LSBOSS: Implement
-                        }
+						if (_options.preprocessOnly)
+						{
+							bx::write(_writer, preprocessor.m_preprocessed.c_str(), (int32_t)preprocessor.m_preprocessed.size());
+
+							return true;
+						}
 
                         {
                             if ('d' == _options.shaderType)

@@ -132,11 +132,11 @@ public:
 				);
 
 		const bgfx::Caps* caps = bgfx::getCaps();
-		tesselationSupported = !!(caps->supported & BGFX_CAPS_TESSELLATION);
+		tessellationSupported = !!(caps->supported & BGFX_CAPS_TESSELLATION);
 
-		printf("tesselation = %i\n", tesselationSupported);
+		printf("tesselation = %i\n", tessellationSupported);
 
-		if (tesselationSupported)
+		if (tessellationSupported)
 		{
 
 			// Create vertex stream declaration.
@@ -145,14 +145,14 @@ public:
 			// Create static vertex buffer.
 			m_vbh = bgfx::createVertexBuffer(
 				// Static data can be passed with bgfx::makeRef
-				bgfx::makeRef(s_icoVertices, sizeof(s_icoVertices))
+				bgfx::makeRef(s_icoVertices, sizeof(s_icoVertices) )
 				, PosColorVertex::ms_decl
 				);
 
 			// Create static index buffer.
 			m_ibh = bgfx::createIndexBuffer(
 				// Static data can be passed with bgfx::makeRef
-				bgfx::makeRef(s_icoIndices, sizeof(s_icoIndices))
+				bgfx::makeRef(s_icoIndices, sizeof(s_icoIndices) )
 				);
 
 
@@ -168,7 +168,7 @@ public:
 	virtual int shutdown() override
 	{
 		// Cleanup.
-		if (tesselationSupported)
+		if (tessellationSupported)
 		{
 			bgfx::destroy(m_ibh);
 			bgfx::destroy(m_vbh);
@@ -200,22 +200,18 @@ public:
 			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Rendering simple tessellated meshes with varying tessellation levels.");
 			bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
 
-			if (tesselationSupported)
+			if (tessellationSupported)
 			{
 				float at[3] = { 0.0f, 0.0f,   0.0f };
 				float eye[3] = { 0.0f, 0.0f, -12.0f };
 
 				// Set view and projection matrix for view 0.
 				const bgfx::HMD* hmd = bgfx::getHMD();
-				if (NULL != hmd && 0 != (hmd->flags & BGFX_HMD_RENDERING))
+				if (NULL != hmd && 0 != (hmd->flags & BGFX_HMD_RENDERING) )
 				{
 					float view[16];
 					bx::mtxQuatTranslationHMD(view, hmd->eye[0].rotation, eye);
-
-					float proj[16];
-					bx::mtxProj(proj, hmd->eye[0].fov, 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
-
-					bgfx::setViewTransform(0, view, proj);
+					bgfx::setViewTransform(0, view, hmd->eye[0].projection, BGFX_VIEW_STEREO, hmd->eye[1].projection);
 
 					// Set view 0 default viewport.
 					//
@@ -229,11 +225,11 @@ public:
 					bx::mtxLookAt(view, eye, at);
 
 					float proj[16];
-					bx::mtxProj(proj, 60.0f, float(m_width) / float(m_height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
+					bx::mtxProj(proj, 60.0f, float(m_width)/float(m_height), 0.1f, 100.0f, bgfx::getCaps()->homogeneousDepth);
 					bgfx::setViewTransform(0, view, proj);
 
 					// Set view 0 default viewport.
-					bgfx::setViewRect(0, 0, 0, (uint16_t)m_width, (uint16_t)m_height);
+					bgfx::setViewRect(0, 0, 0, uint16_t(m_width), uint16_t(m_height) );
 				}
 
 				// This dummy draw call is here to make sure that view 0 is cleared
@@ -261,8 +257,8 @@ public:
 						// Set render states.
 						bgfx::setState(BGFX_STATE_DEFAULT | BGFX_STATE_PT_PATCH3);
 
-						float tesselation[4] = { xx + 1.0f, yy + 1.0f, 1.0f, 1.0f };
-						bgfx::setUniform(u_TessLevel, tesselation);
+						float tessellation[4] = { xx + 1.0f, yy + 1.0f, 1.0f, 1.0f };
+						bgfx::setUniform(u_TessLevel, tessellation);
 
 						// Submit primitive for rendering to view 0.
 						bgfx::submit(0, m_program);
@@ -272,7 +268,7 @@ public:
 			else 
 			{
 				bool blink = uint32_t(time*3.0f) & 1;
-				bgfx::dbgTextPrintf(0, 5, blink ? 0x1f : 0x01, " Tesselation is not supported by GPU. ");
+				bgfx::dbgTextPrintf(0, 5, blink ? 0x1f : 0x01, " Tessellation is not supported by GPU. ");
 			}
 
 			// Advance to next frame. Rendering thread will be kicked to
@@ -286,7 +282,7 @@ public:
 	}
 
 	bgfx::UniformHandle u_TessLevel;
-	bool tesselationSupported;
+	bool tessellationSupported;
 	uint32_t m_width;
 	uint32_t m_height;
 	uint32_t m_debug;
