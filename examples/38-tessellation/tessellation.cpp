@@ -29,18 +29,6 @@ struct PosColorVertex
 
 bgfx::VertexDecl PosColorVertex::ms_decl;
 
-//static PosColorVertex s_cubeVertices[8] =
-//{
-//	{-1.0f,  1.0f,  1.0f, 0xff000000 },
-//	{ 1.0f,  1.0f,  1.0f, 0xff0000ff },
-//	{-1.0f, -1.0f,  1.0f, 0xff00ff00 },
-//	{ 1.0f, -1.0f,  1.0f, 0xff00ffff },
-//	{-1.0f,  1.0f, -1.0f, 0xffff0000 },
-//	{ 1.0f,  1.0f, -1.0f, 0xffff00ff },
-//	{-1.0f, -1.0f, -1.0f, 0xffffff00 },
-//	{ 1.0f, -1.0f, -1.0f, 0xffffffff },
-//};
-
 static PosColorVertex s_icoVertices[] =
 {
 	{ 0.000f, 0.000f, 1.000f, 0xff000000 },
@@ -56,24 +44,6 @@ static PosColorVertex s_icoVertices[] =
 	{ 0.724f, -0.526f, -0.447f, 0xff00ff00 },
 	{ 0.000f, 0.000f, -1.000f, 0xff00ffff },
 };
-
-
-
-//static const uint16_t s_cubeIndices[36] =
-//{
-//	0, 1, 2, // 0
-//	1, 3, 2,
-//	4, 6, 5, // 2
-//	5, 6, 7,
-//	0, 2, 4, // 4
-//	4, 2, 6,
-//	1, 5, 3, // 6
-//	5, 7, 3,
-//	0, 4, 1, // 8
-//	4, 5, 1,
-//	2, 3, 6, // 10
-//	6, 3, 7,
-//};
 
 static const uint16_t s_icoIndices[] = {
 	2, 1, 0,
@@ -196,7 +166,7 @@ public:
 
 			// Use debug font to print information about this example.
 			bgfx::dbgTextClear();
-			bgfx::dbgTextPrintf(0, 1, 0x4f, "bgfx/examples/27-tessellation");
+			bgfx::dbgTextPrintf(0, 1, 0x4f, "bgfx/examples/38-tessellation");
 			bgfx::dbgTextPrintf(0, 2, 0x6f, "Description: Rendering simple tessellated meshes with varying tessellation levels.");
 			bgfx::dbgTextPrintf(0, 3, 0x0f, "Frame: % 7.3f[ms]", double(frameTime)*toMs);
 
