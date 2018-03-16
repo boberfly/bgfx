@@ -2423,12 +2423,12 @@ namespace bgfx { namespace d3d11
 			}
 			else if (_flags&BGFX_UNIFORM_HULLBIT)
 			{
-				memcpy(&m_hsScratch[_regIndex], _val, _numRegs * 16);
+				bx::memCopy(&m_hsScratch[_regIndex], _val, _numRegs*16);
 				m_hsChanges += _numRegs;
 			}
 			else if (_flags&BGFX_UNIFORM_DOMAINBIT)
 			{
-				memcpy(&m_dsScratch[_regIndex], _val, _numRegs * 16);
+				bx::memCopy(&m_dsScratch[_regIndex], _val, _numRegs*16);
 				m_dsChanges += _numRegs;
 			}
 			else
