@@ -1410,15 +1410,15 @@ namespace bgfx
 				}
 			}
 		}
-        else if ('h' == _options.shaderType || 'd' == _options.shaderType)
-        {
-            compiled = false;
-            const bool isHullShader = 'h' == _options.shaderType;
+		else if ('h' == _options.shaderType || 'd' == _options.shaderType)
+		{
+			compiled = false;
+			const bool isHullShader = 'h' == _options.shaderType;
 
             char* entry = strstr(input, "void main()");
             if (NULL == entry)
             {
-                fprintf(stderr, "Shader entry point 'void main()' is not found.\n");
+                fprintf(stderr, "Shader entry point 'void main()' was not found.\n");
             }
             else
             {
@@ -1568,20 +1568,25 @@ namespace bgfx
                             }
                         }
 
-                        const bool hasLocalPosition = NULL != strstr(input, "gl_Position");
+						const bool hasLocalPosition   = NULL != bx::strFind(input, "gl_Position");
+						const bool hasSetHullPosition = NULL != bx::strFind(input, "setHullPosition");
+						const bool hasGetHullPosition = NULL != bx::strFind(input, "getHullPosition");
 
                         // Transform output variables to a shader output struct 
                         preprocessor.writef(
                             "struct ShaderOutput\n"
                             "{\n");
 
-                        if (hasLocalPosition)
-                        {
-                            preprocessor.writef(
-                                "\tvec4 gl_Position : SV_POSITION;\n"
-                                "#define gl_Position _output_.gl_Position\n"
-                                );
-                        }
+						if (hasLocalPosition && !isHullShader)
+						{
+							preprocessor.writef("\tvec4 gl_Position : SV_POSITION;\n");
+							preprocessor.writef("#define gl_Position _output_.gl_Position\n");
+						}
+						//if (hasSetHullPosition && isHullShader)
+						if (isHullShader)
+						{
+							preprocessor.writef("\tvec4 hs_position : POSITION;\n");
+						}
 
                         for (InOut::const_iterator it = shaderOutputs.begin(), itEnd = shaderOutputs.end(); it != itEnd; ++it)
                         {
@@ -1599,6 +1604,18 @@ namespace bgfx
                         preprocessor.writef(
                             "struct ShaderInput\n"
                             "{\n");
+
+						//if (hasSetHullPosition && isHullShader)
+						if (isHullShader)
+						{
+							preprocessor.writef("\tvec4 v_position : POSITION;\n");
+							preprocessor.writef("#define gl_Position _output_.gl_Position\n");
+						}
+						else //if (hasGetHullPosition && !isHullShader)
+						{
+							preprocessor.writef("\tvec4 hs_position : POSITION;\n");
+						}
+
                         for (InOut::const_iterator it = shaderInputs.begin(), itEnd = shaderInputs.end(); it != itEnd; ++it)
                         {
                             VaryingMap::const_iterator varyingIt = varyingMap.find(*it);
@@ -1671,20 +1688,20 @@ namespace bgfx
                                 );
                         }
                         else {
+							preprocessor.writef(
+								" \\\n\t%sShaderConstantInput _constinput_"
+								, arg++ > 0 ? ", " : "  "
+								, vertexCount
+							);
+
+							preprocessor.writef(
+								" \\\n\t%sfloat3 gl_TessCoord : SV_DomainLocation"
+								, arg++ > 0 ? ", " : "  "
+								, vertexCount
+							);
+
                             preprocessor.writef(
                                 " \\\n\t%sconst OutputPatch<ShaderInput, %i> _input_"
-                                , arg++ > 0 ? ", " : "  "
-                                , vertexCount
-                                );
-
-                            preprocessor.writef(
-                                " \\\n\t%sfloat3 gl_TessCoord : SV_DomainLocation"
-                                , arg++ > 0 ? ", " : "  "
-                                , vertexCount
-                                );
-
-                            preprocessor.writef(
-                                " \\\n\t%sShaderConstantInput _constinput_"
                                 , arg++ > 0 ? ", " : "  "
                                 , vertexCount
                                 );
@@ -1796,6 +1813,12 @@ namespace bgfx
                                     bx::write(_writer, shaderSize);
                                     bx::write(_writer, code.c_str(), shaderSize);
                                     bx::write(_writer, uint8_t(0) );
+
+									if (_options.disasm)
+									{
+										std::string disasmfp = _options.outputFilePath + ".disasm";
+										writeFile(disasmfp.c_str(), code.c_str(), shaderSize);
+									}
                                 }
                                 else
                                 {
@@ -2532,6 +2555,12 @@ namespace bgfx
 								bx::write(_writer, uint8_t(0) );
 
 								compiled = true;
+
+								if (_options.disasm)
+								{
+									std::string disasmfp = _options.outputFilePath + ".disasm";
+									writeFile(disasmfp.c_str(), code.c_str(), shaderSize);
+								}
 							}
 							else
 							{

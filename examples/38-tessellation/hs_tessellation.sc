@@ -1,5 +1,5 @@
-$input v_position, v_color0
-$output hs_position, hs_color0
+$input v_color0
+$output hs_color0
 $layout triangles, 3, equal_spacing, cw
 
 #include <bgfx_shader.sh>
@@ -18,6 +18,6 @@ void main_perpatch()
 
 void main()
 {
-	setHullOutput(hs_position, v_position, ID);
+	setHullPosition(ID);
 	setHullOutput(hs_color0, v_color0, ID);
 }

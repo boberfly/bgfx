@@ -323,8 +323,10 @@ vec4 bgfxTexelFetch(BgfxSampler3D _sampler, ivec3 _coord, int _lod)
 
 #		define texelFetch(_sampler, _coord, _lod) bgfxTexelFetch(_sampler, _coord, _lod)
 
-#       define setHullOutput(output, input, inputID) output = _input_[inputID].input
-#       define getHullOutput(input, inputID) _input_[inputID].input
+#		define setHullPosition(_inputID) _output_.hs_position = _input_[_inputID].v_position
+#		define getHullPosition(_inputID) _input_[_inputID].hs_position
+#		define setHullOutput(output, input, inputID) output = _input_[inputID].input
+#		define getHullOutput(input, inputID) _input_[inputID].input
 
 #	else
 
@@ -449,6 +451,11 @@ vec4  mod(vec4  _a, vec4  _b) { return _a - _b * floor(_a / _b); }
 #	define SAMPLERCUBEARRAY(_name, _reg)     uniform samplerCubeArray _name
 #	define SAMPLER2DARRAYSHADOW(_name, _reg) uniform sampler2DArrayShadow _name
 
+#	define setHullPosition(_inputID) gl_out[_inputID].gl_Position = gl_in[_inputID].gl_Position
+#	define getHullPosition(_inputID) gl_in[_inputID].gl_Position
+#	define setHullOutput(_output, _input, _inputID) _output[_inputID] = _input[_inputID]
+#	define getHullOutput(_input, _inputID) _input[inputID]
+
 #	if BGFX_SHADER_LANGUAGE_GLSL >= 130
 #		define ISAMPLER2D(_name, _reg) uniform isampler2D _name
 #		define USAMPLER2D(_name, _reg) uniform usampler2D _name
@@ -469,9 +476,6 @@ float rcp(float _a) { return 1.0/_a; }
 vec2  rcp(vec2  _a) { return vec2(1.0)/_a; }
 vec3  rcp(vec3  _a) { return vec3(1.0)/_a; }
 vec4  rcp(vec4  _a) { return vec4(1.0)/_a; }
-
-#	define setHullOutput(output, input, inputID) output[inputID] = input[inputID]
-#	define getHullOutput(input, inputID) input[inputID]
 
 #endif // BGFX_SHADER_LANGUAGE_*
 
